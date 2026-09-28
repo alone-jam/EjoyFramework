@@ -215,7 +215,16 @@ WS1 与 WS4 可并行；WS3 依赖 WS1/WS2。每个 WS 拆里程碑（M），见
       `Editor/Core.Unity.Editor/Base` 的 130 个条目上移到层根（git 重命名，`.meta` GUID 全部保留，仅删 3 个无引用的文件夹 `.meta`）；
       两个编辑器类型命名空间 `EjoyFramework.Core.Unity.Editor.Base` → 层根 `EjoyFramework.Core.Unity.Editor`（无外部引用、无序列化资产）。
       规则写入 `DirectoryConventions.md`。全量 2544/2545 + PlayMode 41/41，与搬迁前一致。
-- [ ] **WS5-M2 Struct 事件与无 GC 集合**（RingBuffer/Deque/BitSet/SlotMap——M3/M4 的前置）
+- [ ] **WS5-M2 Struct 事件与无 GC 集合**（RingBuffer/Deque/BitSet/SlotMap——M3/M4 的前置）：**代码完成（2026-09-28，Mac），Unity 验证后再勾选**。
+      `Core/Collections/`——`RingBuffer<T>`（Grow / Overwrite / Reject；int 回绕安全的连续序号，按 tick 取历史，`DiscardBefore` 确认、
+      `DiscardFrom` 回滚）、`Deque<T>`、`BitSet`（固定 / 可增长，O(1) Count，de Bruijn 位扫描，And / Or / Xor / AndNot / 超集匹配）、
+      `SlotMap<T>` + `SlotHandle`（代际句柄，奇偶区分占用，代数用尽的槽位退役）；原有 BinaryHeap / NoAllocSort / GameLinkedList /
+      MultiDictionary 移入（GUID 保留）。`Core/Event/EventChannel<T>`（struct 事件按 `in` 传递；所属线程契约；Fire 任意线程排队；
+      派发中退订留墓碑；异常隔离）+ `IEventManager.GetChannel<T>()`（EventManager 每帧派发、关停统一关闭）。EventPool 线程契约落地：
+      订阅表加锁，Update 单线程且不可重入（检查始终生效），关停后 Fire 回收参数、退订不抛，去掉 `Enum.HasFlag` 装箱。
+      文档 `docs/Collections.md`。测试 +81（5 个零分配断言），基准 +7。
+      验证：Core 用 dotnet 独立编译通过；97 个纯逻辑测试在 CoreCLR 上通过（含 EventPool / EventManager 原有测试回归）。
+      **未做**：Unity EditMode / PlayMode 全量、Mono 下的零分配与基准数值。分支 `ws5/m2-collections`，未推送。
 - [ ] **WS5-M3 ECS 深化**（用户 2026-09-24 指定重点：先分析 FPSSample，再按框架风格吸收；ECS 内核仍自研）：
       ① 按游戏循环阶段显式排序的系统组（服务端模拟 / 客户端预测 / 插值 / 表现，对应 FPSSample
       `ServerGameLoop`/`ClientGameLoop` 的显式 Update 顺序）；② 固定 tick 时间与 tick 驱动的系统；③ 结构变更只在同步点生效

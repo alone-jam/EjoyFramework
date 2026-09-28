@@ -38,7 +38,7 @@ EjoyFramework.GamePlay.Unity  玩法 Unity 驱动壳（18 个 MonoBehaviour）
 | 组件 | 要点 |
 |---|---|
 | ReferencePool | 每类型 Queue + 反射-free 泛型工厂；Interlocked 统计；MaxCapacity 防无界；严格模式 O(1) 重复 Release 检测 |
-| EventPool<T> | 双队列 swap 锁外分发；handler 快照迭代；ThreadStatic scratch 零分配；Fire 移交 args 所有权自动 Release |
+| EventPool<T> | 双队列 swap 锁外分发；handler 快照迭代；ThreadStatic scratch 零分配；Fire 移交 args 所有权自动 Release；订阅表加锁、Update 单线程不可重入（WS5-M2） |
 | FrameworkLog | ILogHelper 注入；1/2/3 参重载避免 params 装箱；Debug 级 Conditional 编译期裁剪；日志路径永不崩溃 |
 | Utility | Text/Json 注入式 helper；Timestamp 基于 Stopwatch 单调时钟 |
 | Variable | 引用池化的黑板值容器（14 个别名），FSM 数据用 |
@@ -99,6 +99,7 @@ EjoyFramework.GamePlay.Unity  玩法 Unity 驱动壳（18 个 MonoBehaviour）
    Editor 反射兜底掩盖问题，只在真机暴露。
 3. **战斗双轨重复**：AbilitySystem（per-owner）与 BuffSystem/SkillSystem（全局模块）语义重叠，易双算。
 4. **线程契约靠约定**：EventPool 订阅表无锁但 Fire 承诺跨线程；EnsureMainThread Release 下编译期消除。
+   → WS5-M2 已处理：订阅表加锁，Update 同一时刻只允许一个线程且不可重入（检查始终生效），关停后 Fire 回收参数、退订不抛（见 `docs/Collections.md`）。
 5. **Netcode 扩展性**：每连接一线程；全量快照广播（AOI 未接入下发）；权威状态为无 schema 的 float[]；
    NetDeliveryMethod 的 Unreliable 语义是假的（全按可靠有序）。
 6. JobScope.CompleteOnDispose 单句柄字段，重复调用覆盖前句柄 → 容器提前释放风险；
@@ -106,7 +107,7 @@ EjoyFramework.GamePlay.Unity  玩法 Unity 驱动壳（18 个 MonoBehaviour）
 8. UnitWorld 阵营/空间需手动同步（改 FactionId 不重分桶、移动需显式 SyncSpatial），忘调无报错。
 9. GamePlay 根下 11 个空占位目录（代码已迁 Combat/LiveOps）待清理；PatchManager 头注释已过期（仍提 Activator）。
 10. Units（3000+ 行）缺测试；MvvmView binder 索引一次性，运行时动态挂的 binder 不会被 Bind；
-    Framework.EnsureSnapshot 尾部槽位强引用滞留；EventPool.ClearAllHandlers 不逐个通知；
+    Framework.EnsureSnapshot 尾部槽位强引用滞留；EventPool.ClearAllHandlers 不逐个通知（WS5-M2：关停时逐个事件记录未退订的处理器，晚到的退订不再抛出）；
     Blackboard.Get 类型不匹配静默 default；AntiCheat/SecureInt 仅防休闲作弊。
 
 ## 6. 基建缺口（高性能 / 零 GC 方向）
@@ -134,8 +135,8 @@ ByteBuffer、FrameworkLog（免装箱重载）、Jobs 封装。缺口按优先�
 | 1 | CollectionPool | List/Dictionary/HashSet/StringBuilder 的静态池（Get/Release + using 作用域），当前只能池化 IReference 类 | P0 |
 | 2 | BufferPool（byte[] 租借） | 按 2 的幂分桶的 ArrayPool；Network/Download/Save/ByteBuffer 路径当前各自 new byte[] | P0 |
 | 3 | 零分配字符串格式化 | Utility.Text 仍走 string.Format 产生分配；需 ValueStringBuilder / 缓存式 number→string（UI 数字高频）| P0 |
-| 4 | Struct 泛型事件通道 | EventPool 基于 class BaseEventArgs（池化但仍是引用+虚调）；补 `Event<T> where T:struct` 无装箱直发通道用于每帧高频事件 | P1 |
-| 5 | 无 GC 集合 | RingBuffer/Deque、二叉堆 PriorityQueue（Timer/AI 调度用）、BitSet、SlotMap/SparseSet（实体 id 索引） | P1 |
+| 4 | Struct 泛型事件通道 | EventPool 基于 class BaseEventArgs（池化但仍是引用+虚调）；补 `Event<T> where T:struct` 无装箱直发通道用于每帧高频事件 → WS5-M2：`EventChannel<T>` | P1 |
+| 5 | 无 GC 集合 | RingBuffer/Deque、二叉堆 PriorityQueue（Timer/AI 调度用）、BitSet、SlotMap/SparseSet（实体 id 索引）→ WS5-M2：`Core/Collections/`（PriorityQueue 即已有的 BinaryHeap；SparseSet 即 ECS 内核的 `ComponentPool<T>`，internal） | P1 |
 | 6 | 零 GC 资源异步 | 定案（2026-08-10）：不做 awaiter/Task（async 状态机挂起时必装箱）。采用 AssetBatch 批量预载 + Pin 缓存同步 Get<T>（玩法热路径无异步）+ struct 版本号句柄轮询（流程状态机）+ 缓存委托回调补充 | P0 |
 | 7 | 字符串哈希 ID | FNV1a StringHash + 编辑期碰撞检查；RedDot/DataNode/Config 热路径当前用 string 键 | P1 |
 | 8 | Span 化解析 | DataTable/CSV/Localization 解析走 string.Split；改 ReadOnlySpan<char> 切片 + span Parse 零分配 | P1 |

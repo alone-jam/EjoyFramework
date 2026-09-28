@@ -100,5 +100,13 @@ namespace EjoyFramework.Core.Unity
         {
             m_EventManager.FireNow(sender, e);
         }
+
+        /// <summary>
+        /// 获取 struct 事件通道（每帧高频事件用，返回值应缓存）。
+        /// </summary>
+        public EventChannel<T> GetChannel<T>() where T : struct
+        {
+            return m_EventManager.GetChannel<T>();
+        }
     }
 }

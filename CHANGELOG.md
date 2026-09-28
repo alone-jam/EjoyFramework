@@ -7,8 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Allocation-free collections and struct event channels
+
+- Added `RingBuffer<T>`, `Deque<T>`, `BitSet` and `SlotMap<T>` (with generational `SlotHandle`) under
+  `Runtime/Core/Collections/` in the `EjoyFramework.Core` namespace. All use struct enumerators and do not
+  allocate in steady state. `RingBuffer<T>` addresses elements by wrap-safe sequence numbers for tick history.
+- Added `EventChannel<T>` for struct events passed by `in`, and `IEventManager.GetChannel<T>()` /
+  `EventComponent.GetChannel<T>()`. The event manager dispatches queued channel events every frame and
+  closes the channels on shutdown.
+
 ### Changed
 
+- `EventPool` now locks its subscription table, so `Subscribe`, `Unsubscribe`, `TryUnsubscribe`, `Check`,
+  `Count` and `SetDefaultHandler` are safe from any thread. `Update` rejects concurrent and re-entrant calls.
+  After shutdown, `Fire` releases its arguments immediately and `Unsubscribe` no longer throws.
+- `IEventManager` gained the `GetChannel<T>()` member. Custom implementations of the interface must add it.
+- Moved `BinaryHeap`, `NoAllocSort`, `GameLinkedList` and `MultiDictionary` into `Runtime/Core/Collections/`.
+  Their namespace and Unity GUIDs are unchanged.
 - Removed the redundant package prefix from Runtime, Editor and Tests layer directories
   (for example, `Runtime/Core`). Namespace and assembly names and Unity GUIDs are preserved;
   source paths, test fixtures, standalone tools and current documentation follow the new layout.

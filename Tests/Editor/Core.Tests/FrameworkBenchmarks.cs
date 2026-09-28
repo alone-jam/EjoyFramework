@@ -12,6 +12,7 @@ using UnityEngine;
 using EjoyFramework.Core;
 using EjoyFramework.Core.Benchmarking;
 using EjoyFramework.Core.Diagnostics;
+using EjoyFramework.Core.Event;
 using EjoyFramework.Core.Quality;
 using EjoyFramework.Core.Spatial;
 using EjoyFramework.Core.Streaming;
@@ -349,6 +350,144 @@ namespace EjoyFramework.Tests
                     if (d == AutoQualityDecision.LevelUp && level < 4) level++;
                 }
             }, true);
+        }
+
+        // ---------------- 集合 / struct 事件（WS5-M2） ----------------
+
+        private struct BenchHitEvent
+        {
+            public int Target;
+            public float Damage;
+        }
+
+        public sealed class BenchPingArgs : GameEventArgs
+        {
+            public override int Id { get { return 7301; } }
+            public override void Clear() { }
+        }
+
+        [Test]
+        public void Collections_RingBufferPushLookup()
+        {
+            RingBuffer<long> history = new RingBuffer<long>(128, RingBufferOverflow.Overwrite);
+            long sink = 0;
+            Run("Collections.RingBuffer.PushLookup", n =>
+            {
+                for (long i = 0; i < n; i++)
+                {
+                    history.PushRef() = i;
+                    long v;
+                    if (history.TryGetAtSequence(history.NextSequence - 64, out v)) sink += v;
+                }
+            }, true);
+            Assert.GreaterOrEqual(sink, 0L);
+        }
+
+        [Test]
+        public void Collections_DequeBothEnds()
+        {
+            Deque<int> deque = new Deque<int>(64);
+            long sink = 0;
+            Run("Collections.Deque.BothEnds", n =>
+            {
+                for (long i = 0; i < n; i++)
+                {
+                    deque.PushBack((int)i);
+                    deque.PushFront((int)i);
+                    sink += deque.PopFront();
+                    sink += deque.PopBack();
+                }
+            }, true);
+            Assert.AreEqual(0, deque.Count);
+        }
+
+        [Test]
+        public void Collections_BitSetScan4096()
+        {
+            BitSet bits = new BitSet(4096);
+            for (int i = 0; i < 4096; i += 37) bits.Set(i);
+            long sink = 0;
+            Run("Collections.BitSet.Scan4096", n =>
+            {
+                for (long i = 0; i < n; i++)
+                {
+                    foreach (int index in bits) sink += index;
+                }
+            }, true);
+            Assert.Greater(sink, 0L);
+        }
+
+        [Test]
+        public void Collections_SlotMapAddLookupRemove()
+        {
+            SlotMap<int> map = new SlotMap<int>(64);
+            long sink = 0;
+            Run("Collections.SlotMap.AddLookupRemove", n =>
+            {
+                for (long i = 0; i < n; i++)
+                {
+                    SlotHandle h = map.Add((int)i);
+                    int v;
+                    if (map.TryGetValue(h, out v)) sink += v;
+                    map.Remove(h);
+                }
+            }, true);
+            Assert.AreEqual(0, map.Count);
+        }
+
+        [Test]
+        public void Event_ChannelFireNow4Handlers()
+        {
+            EventChannel<BenchHitEvent> channel = new EventChannel<BenchHitEvent>();
+            long sink = 0;
+            channel.Subscribe((in BenchHitEvent e) => sink += e.Target);
+            channel.Subscribe((in BenchHitEvent e) => sink++);
+            channel.Subscribe((in BenchHitEvent e) => sink += (long)e.Damage);
+            channel.Subscribe((in BenchHitEvent e) => sink--);
+            BenchHitEvent hit = new BenchHitEvent { Target = 1, Damage = 2f };
+            Run("Event.Channel.FireNow4", n =>
+            {
+                for (long i = 0; i < n; i++) channel.FireNow(hit);
+            }, true);
+            Assert.Greater(sink, 0L);
+        }
+
+        [Test]
+        public void Event_ChannelFireDispatch64()
+        {
+            EventChannel<BenchHitEvent> channel = new EventChannel<BenchHitEvent>();
+            long sink = 0;
+            channel.Subscribe((in BenchHitEvent e) => sink += e.Target);
+            BenchHitEvent hit = new BenchHitEvent { Target = 1 };
+            Run("Event.Channel.FireDispatch64", n =>
+            {
+                for (long i = 0; i < n; i++)
+                {
+                    for (int k = 0; k < 64; k++) channel.Fire(hit);
+                    channel.DispatchQueued();
+                }
+            }, true);
+            Assert.Greater(sink, 0L);
+        }
+
+        // 对照组：同样 4 个处理器走 GameEventArgs（引用池往返 + 按 id 查表 + 锁内快照），只记录不断言分配。
+        [Test]
+        public void Event_GameEventArgsFireNow4Handlers()
+        {
+            EventManager em = new EventManager();
+            long sink = 0;
+            for (int k = 0; k < 4; k++)
+            {
+                int weight = k + 1;
+                em.Subscribe(7301, (s, e) => sink += weight);
+            }
+
+            Run("Event.GameEventArgs.FireNow4", n =>
+            {
+                for (long i = 0; i < n; i++) em.FireNow(this, ReferencePool.Acquire<BenchPingArgs>());
+            }, false);
+            em.Shutdown();
+            Assert.Greater(sink, 0L);
         }
     }
 }

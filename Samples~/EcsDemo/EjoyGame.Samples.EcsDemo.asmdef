@@ -1,7 +1,7 @@
 {
     "name": "EjoyGame.Samples.EcsDemo",
     "rootNamespace": "EjoyGame.Samples.EcsDemo",
-    "references": ["EjoyFramework.Core.Ecs", "EjoyFramework.Core.Unity"],
+    "references": ["EjoyFramework.Core.Ecs", "EjoyFramework.Core.Unity", "EjoyFramework.GamePlay.Netcode"],
     "autoReferenced": true,
     "noEngineReferences": false
 }

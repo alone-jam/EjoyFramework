@@ -5,22 +5,39 @@ namespace EjoyFramework.Core.Ecs
     /// <summary>不可变查询描述；在初始化时缓存，WithAny 调用累积为 OR，WithAll/WithNone 累积为 AND。</summary>
     public sealed partial class Query
     {
+        private enum DespawnFilter : byte { Exclude, Include, Only }
+
         private readonly World m_World;
+        private readonly DespawnFilter m_DespawnFilter;
         private readonly IComponentPool[] m_All;
         private readonly IComponentPool[] m_Any;
         private readonly IComponentPool[] m_None;
 
         internal Query(World world) : this(world, Array.Empty<IComponentPool>(), Array.Empty<IComponentPool>(), Array.Empty<IComponentPool>()) { }
 
-        private Query(World world, IComponentPool[] all, IComponentPool[] any, IComponentPool[] none)
+        private Query(World world, IComponentPool[] all, IComponentPool[] any, IComponentPool[] none,
+            DespawnFilter despawnFilter = DespawnFilter.Exclude)
         {
             m_World = world;
+            m_DespawnFilter = despawnFilter;
             m_All = all; m_Any = any; m_None = none;
         }
 
-        public Query WithAll<T>() where T : struct => new Query(m_World, Append(m_All, m_World.GetPool<T>()), m_Any, m_None);
-        public Query WithAny<T>() where T : struct => new Query(m_World, m_All, Append(m_Any, m_World.GetPool<T>()), m_None);
-        public Query WithNone<T>() where T : struct => new Query(m_World, m_All, m_Any, Append(m_None, m_World.GetPool<T>()));
+        public Query WithAll<T>() where T : struct
+            => new Query(m_World, Append(m_All, m_World.GetPool<T>()), m_Any, m_None, m_DespawnFilter);
+        public Query WithAny<T>() where T : struct
+            => new Query(m_World, m_All, Append(m_Any, m_World.GetPool<T>()), m_None, m_DespawnFilter);
+        public Query WithNone<T>() where T : struct
+            => new Query(m_World, m_All, m_Any, Append(m_None, m_World.GetPool<T>()), m_DespawnFilter);
+
+        /// <summary>Immutable variant including both ordinary and requested entities.</summary>
+        public Query IncludeDespawning() => new Query(m_World, m_All, m_Any, m_None, DespawnFilter.Include);
+
+        /// <summary>
+        /// Immutable variant for requested entities. During a cleanup pass it selects only the
+        /// captured batch, not new requests made by that pass. Outside cleanup it selects all pending.
+        /// </summary>
+        public Query OnlyDespawning() => new Query(m_World, m_All, m_Any, m_None, DespawnFilter.Only);
 
         public int Count
         {
@@ -92,6 +109,8 @@ namespace EjoyFramework.Core.Ecs
 
         private bool Matches(int index)
         {
+            if (m_DespawnFilter == DespawnFilter.Exclude && m_World.IsDespawningAt(index)) return false;
+            if (m_DespawnFilter == DespawnFilter.Only && !m_World.MatchesOnlyDespawning(index)) return false;
             for (int i = 0; i < m_All.Length; i++)
                 if (!m_All[i].Has(index)) return false;
             for (int i = 0; i < m_None.Length; i++)

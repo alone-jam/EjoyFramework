@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>EjoyFramework.GamePlay.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="EjoyFramework.GamePlay.Netcode.Session.Runtime.csproj" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Messages/NetcodeCodecAllocationTests.cs" />
+    <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Transport/BudgetedLoopbackTests.cs" />
+    <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Session/TickAuthoritativeServerTests.cs" />
+    <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Session/TickAuthorityLoopbackTests.cs" />
+    <Compile Include="../../Samples~/EcsDemo/TickAuthorityScenario.cs" />
+    <Compile Include="TickAuthorityScenarioTests.cs" />
+  </ItemGroup>
+</Project>

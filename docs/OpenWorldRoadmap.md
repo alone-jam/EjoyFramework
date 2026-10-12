@@ -3,6 +3,8 @@
 > **恢复协议**：任何会话开始时先读本文件 + `git log -10`，找「状态追踪」里第一个未勾选的里程碑继续。
 > 每个里程碑完成 = 代码 + 测试（含零 GC 断言）+ 文档 + 一次提交。验证统一走 unity-cli
 > （命令见 `docs/PackageMigration.md` 与本文末尾），不接受"静态编译通过"替代运行。
+> 当前按用户约定暂缓运行验证：已实现并静态审查、仅待环境验收的条目保留未勾选，但不要因此重复开发；
+> 读明细后接正在实施的下一切片，持续记录验证欠项。测试未执行、未提交或未合入 main 的状态必须明确区分。
 >
 > 制定：2026-09-21。依据：`FrameworkAnalysis.md`（隐患 10 项 / 零 GC 缺口 13 项）、`EXPANSION_PLAN.md`、
 > `ConfigBlob.md`、`DOTS-Research.md`、代码规模与测试计数实测（下表）。
@@ -223,16 +225,54 @@ WS1 与 WS4 可并行；WS3 依赖 WS1/WS2。每个 WS 拆里程碑（M），见
       派发中退订留墓碑；异常隔离）+ `IEventManager.GetChannel<T>()`（EventManager 每帧派发、关停统一关闭）。EventPool 线程契约落地：
       订阅表加锁，Update 单线程且不可重入（检查始终生效），关停后 Fire 回收参数、退订不抛，去掉 `Enum.HasFlag` 装箱。
       文档 `docs/Collections.md`。测试 +81（5 个零分配断言），基准 +7。
-      验证：Core 用 dotnet 独立编译通过；97 个纯逻辑测试在 CoreCLR 上通过（含 EventPool / EventManager 原有测试回归）。
-      **未做**：Unity EditMode / PlayMode 全量、Mono 下的零分配与基准数值。分支 `ws5/m2-collections`，未推送。
+      历史验证：较早 M2 版本的 Core 独立编译与 97 个 CoreCLR 用例通过；不能作为后续修复及当前合流版本的验证。
+      后续关停注册与大容量下标修复已静态审查，新增 16 个回归场景未运行。M2 源码/测试/文档已合入当前 M3 开发 worktree，保留原分支作为来源，未合入 main。
+      **未做**：合流版本编译与回归、Unity EditMode / PlayMode 全量、Mono 下的零分配与基准数值；未推送。
 - [ ] **WS5-M3 ECS 深化**（用户 2026-09-24 指定重点：先分析 FPSSample，再按框架风格吸收；ECS 内核仍自研）：
       ① 按游戏循环阶段显式排序的系统组（服务端模拟 / 客户端预测 / 插值 / 表现，对应 FPSSample
       `ServerGameLoop`/`ClientGameLoop` 的显式 Update 顺序）；② 固定 tick 时间与 tick 驱动的系统；③ 结构变更只在同步点生效
       （对应 `GameWorld` 的延迟 Despawn，落到现有 CommandBuffer）；④ 复制组件契约（序列化 / 预测态校验 / 插值态），供 M4 使用；
       ⑤ 与 WorldStreaming 单元集成（按 cell 批量创建 / 卸载实体）；查询零分配。
+      **代码进展（2026-10-01，未验收）**：时间基础 TickMath / EcsTime / TickClock（默认 30Hz，消费时推进 tick，追赶上限与 Alpha）；
+      ISystem 迁移为 `in EcsTime`；EcsLoop 按输入/模拟/结算与插值/表现分阶段驱动，失败显式故障/重置；
+      Unity EcsWorldComponent 已接入 Update 驱动的固定 tick，支持 Scaled/Unscaled、手动帧推进、暂停与所有权清理，旧 FixedUpdate 值映射到 Update；
+      仓库内示例、README、Editor/PlayMode 测试已同步。静态审查未发现确认问题，**本轮未编译、未运行测试，不代替 Unity 验证**。
+      两阶段销毁已接线：RequestDespawn 幂等标记、默认查询立即排除、OnlyDespawning/IncludeDespawning 保留组件读取；
+      CommandBuffer 回放请求、独立 SystemGroup 成功后统一释放、EcsLoop tick/帧末按固定批次反初始化后释放；每同步点最多四轮级联，失败保留请求。
+      DespawnTests / DespawnLoopTests 已补，旧命令/循环测试已按新时机调整；本次也仅完成静态审查，运行验证待补。
+      Struct 查询访问器已接线：IEntityVisitor（纯实体及 1–4 组件）+ `ForEach<TVisitor,...>(ref visitor)`，复用原筛选/遍历守卫，异常仍写回访问器状态；
+      投射物示例移动系统已使用此路径，QueryStructVisitorTests 含双环境分配检测与阳性对照，静态审查未发现确认问题，测试未运行。
+      容量预留已实现：EnsureEntityCapacity / EnsureCapacity<T> 按绝对索引范围 [0,N) 预留且不改变逻辑状态；
+      自动组件扩容已改为全部数组准备成功后一起替换；新增 lifetime 数组同样受此保护。独立静态复核确认原问题已修复；测试与真实 OOM 验证未执行。
+      组件类型索引已替代 World 的 Dictionary<Type>：内部泛型 ID + 每世界池数组，销毁/释放只遍历实际注册池；独立静态审查未发现确认问题，测试未运行。
+      已补早期 ECS 零分配测试的 Unity/CLR 双环境检测及阳性对照；已修复流送取消期间观察者返回后不重试的问题，均已静态复核，未运行测试。
+      分区索引及键预留已实现并通过独立静态审查：稀疏整数键、侵入式成员链、包含 pending 的计数/遍历、预算化新销毁请求、空分区键保留至所有者释放。
+      流送桥代码及测试已通过独立静态审查：操作代数+独立分区键、预算化 Pump、实体实际清理后再卸载 IO，取消/失败不伪报成功给持久化层；
+      已修复销毁请求部分失败时复用共享预算的问题，并经定向静态复核；故障注入测试已编写但未运行。
+      已按批准方案增加 Core→Ecs 引用。沿用恰好一次 IO 回报契约，不能识别 cellId 复用后的旧重复回报；未进行编译或测试。
+      复制契约第一步已实现并通过独立静态审查：IPredicted/IInterpolated、显式非零 schema ID 与冻结目录（ReplicationSchema），按 ID 排序、禁止重复/冻结后注册；
+      实现/测试/README/DESIGN 在 Core/Ecs/Replication 及 ReplicationSchemaTests，尚未运行。
+      最新权威基线存储 AuthoritativeBaselineStore<T> 已实现并通过独立静态审查：World 绑定、值副本、存储/时间线/组件绑定 token、非回绕 tick 顺序；
+      不写 World、不做回滚。插值历史已审查并原样集成；成员 lifetime 使移除重加后旧基线/插值绑定自动不可用，重新 Bind 后才能接受新状态。
+      完成 tick 的采集回调和单/双组件精确 tick 恢复已实现并通过静态审查；双组件先整体校验再写入，不声称跨存储自动证明远端时间线一致。
+      以上测试均未运行。本地预测历史 PredictionHistoryStore<T> 已通过静态审查并原样集成：截断/重建分支、不复活淘汰数据、精确 tick 验证。
+      显式 Replay/ValidateReplay 已审查并集成：仅调度 opt-in tick 系统，不推进真实时钟；禁止结构操作，采集前后检查全部自有缓冲。
+      已修复向跳过/已执行组缓冲写入后泄漏到正常帧的问题，补了四个回归场景并复核。
+      封闭双组件纠错示例已审查并集成：独立 epoch/精确输入环、双预测完整预检、成对恢复/重建锚点、重放双采集与执行失败恢复门禁；
+      示例仅拥有一个实体和固定 8Hz 整数模拟，不代表多实体通用协调器或网络会话认证。测试在 Tools~/Ecs 中，未运行。
+      尚缺运行验收及宿主示例迁移。较大范围一致基线提交、网络输入/复制/纠错调度归 M4 的完整会话范围，不以封闭示例冒充完成；边界见 ADR 0003/0004。
 - [ ] **WS5-M4 帧同步 Netcode**（用户指定重点；参考 FPSSample `Networking/`（62 个文件）与 `Game/Main` 游戏循环）：
-      先对比现有 GamePlay/Netcode（已有快照 + 预测 + 插值，但全量快照、每连接一线程、Unreliable 假语义），分析阶段定案
-      "确定性锁步"与"状态同步 + 预测回滚"的取舍（锁步依赖 P2-1 确定性随机 / 定点数）。候选吸收点：固定 tick 命令帧、
+      **实施方向已定（ADR 0004）**：新协议默认服务端权威状态同步 + 本地预测重放 + 远端插值；锁步保留独立模式，不因“帧同步”名称直接采用。
+      当前未确认缺少阻塞协议基础开发的 Core 前置，但 M3 运行验证仍未完成。
+      首个离线 codec 切片已通过 C# 与安全静态审查并集成：限长 LSB-first bit 编码、32 字节 EJTI tick 输入帧、显式 epoch/schema/revision、规范 padding 与精确长度；
+      源码链接测试项目位于 Tools~/Netcode，尚未编译或运行。63 个原有 Netcode 跟踪文件内容未改动，旧会话未自动切换。
+      独立 TickCommandInbox 已通过 C# / 安全静态审查并集成：有界未来 tick 窗口、命令值副本、重复拒绝、精确解码与服务端 Begin/Complete 生命周期；准入本身不推进模拟。
+      独立 codec 测试项目现包含 10 个运行时源码和 5 个测试源码链接，未运行。
+      IBudgetedNetTransport 与有界 Loopback 已通过双路静态审查并集成，包含事件/交付字节预算、FIFO 延续、重入保护和明确丢弃/暂停语义。
+      TickAuthoritativeServer 因子任务上游错误中断后由主会话补齐选择、完成、接收、生命周期逻辑；真实 Loopback 示例与源链接 session 项目已加入。
+      新服务器实现尚待独立审查（520 中断，已再次请求单路审查），未编译或运行，不视为交付完成。代码设计仅由私有 EcsLoop 推进，授权/完成/撤销按整批边界处理，旧会话不变。
+      已有 GamePlay/Netcode 仍存在全量快照、每连接一线程、Unreliable 假语义与接收驱动的客户端时长路径，后续必须接入服务端固定 tick 准入。
+      后续候选吸收点：固定 tick 命令帧、
       按客户端已确认基线的快照差分（`DeltaWriter`/`NetworkSchema` 字段级差分与量化）、位打包 + 可选 Huffman 压缩模型、
       UDP 连接的序号 / 确认与真正的可靠 / 不可靠通道（`NetworkConnection`/`SequenceBuffer`）、预测回滚与重放校验
       （`NetworkPrediction`）、插值缓冲、延迟补偿状态历史、AOI 驱动下发。P2-2 并入本项。

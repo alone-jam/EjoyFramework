@@ -1,7 +1,9 @@
 {
     "name": "EjoyFramework.Core",
     "rootNamespace": "EjoyFramework.Core",
-    "references": [],
+    "references": [
+        "EjoyFramework.Core.Ecs"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,

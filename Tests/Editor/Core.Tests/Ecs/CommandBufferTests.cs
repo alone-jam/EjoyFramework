@@ -61,6 +61,9 @@ namespace EjoyFramework.Tests.Ecs
             Assert.That(world.Get<Health>(entity).Value, Is.EqualTo(3));
             commands.DestroyEntity(entity);
             commands.Playback();
+            Assert.That(world.IsAlive(entity), Is.True, "回放只请求销毁，组件留给清理系统");
+            Assert.That(world.Query().Count, Is.Zero);
+            Assert.That(world.ProcessDespawns(), Is.EqualTo(1));
             Assert.That(world.EntityCount, Is.Zero);
         }
 
@@ -86,12 +89,13 @@ namespace EjoyFramework.Tests.Ecs
             using var world = new World();
             using var commands = new CommandBuffer(world);
             var live = world.CreateEntity();
+            var stale = world.CreateEntity();
             commands.Set(live, new Health { Value = 5 });
-            commands.DestroyEntity(live);
-            commands.Set(live, new Health()); // Valid at recording; stale when reached.
+            commands.Set(stale, new Health()); // 有效记录；真正失效的 Set 仍应使回放失败。
             var pending = commands.CreateEntity();
+            world.DestroyEntity(stale);
             Assert.Throws<InvalidOperationException>(() => commands.Playback());
-            Assert.That(world.IsAlive(live), Is.False);
+            Assert.That(world.Get<Health>(live).Value, Is.EqualTo(5), "之前已完成的修改不回滚");
             Assert.That(world.IsAlive(pending), Is.False);
             Assert.That(commands.Count, Is.Zero);
             var recycled = world.CreateEntity();
@@ -109,7 +113,9 @@ namespace EjoyFramework.Tests.Ecs
             commands.DestroyEntity(old);
             world.DestroyEntity(old);
             var next = world.CreateEntity();
-            Assert.Throws<InvalidOperationException>(() => commands.Playback());
+            Assert.DoesNotThrow(() => commands.Playback(), "失效的销毁请求幂等忽略");
+            Assert.That(world.PendingDespawnCount, Is.Zero);
+            Assert.That(world.ProcessDespawns(), Is.Zero);
             Assert.That(world.IsAlive(next), Is.True);
         }
 
@@ -134,6 +140,9 @@ namespace EjoyFramework.Tests.Ecs
             Assert.That(visited, Is.EqualTo(1));
             Assert.That(commands.Count, Is.EqualTo(201));
             commands.Playback();
+            Assert.That(world.EntityCount, Is.EqualTo(101));
+            Assert.That(world.Query().Count, Is.EqualTo(100));
+            Assert.That(world.ProcessDespawns(), Is.EqualTo(1));
             Assert.That(world.EntityCount, Is.EqualTo(100));
         }
 

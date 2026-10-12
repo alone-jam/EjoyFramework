@@ -28,8 +28,20 @@ obj/
 !Tools~/Ecs/Directory.Build.props
 !Tools~/Ecs/*.cs
 !Tools~/Ecs/*.md
+!Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Codec.Tests.csproj
+!Tools~/Netcode/EjoyFramework.Core.SessionSupport.csproj
+!Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Session.Runtime.csproj
+!Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Session.Tests.csproj
 
 # Local editor state, downloaded archives and credentials are not package inputs.
+/FPSSample-master~/
+/.claude/worktrees/
+/.claude/fw-worktrees/
+/.claude/verify/
+/.claude/recovery/
+/.claude/settings.json
+/.claude/settings.local.json
+/.claude/CLAUDE.md
 .vs/
 .idea/
 .DS_Store

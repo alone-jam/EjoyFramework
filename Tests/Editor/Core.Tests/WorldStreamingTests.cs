@@ -136,6 +136,31 @@ namespace EjoyFramework.Tests
             Assert.AreEqual(0, m_Mgr.LoadingCellCount);
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void CancelledLoadFailure_RetriesOnlyWhenObserverReturned(bool returnBeforeCompletion)
+        {
+            RegisterGrid(0);
+            int id = m_Mgr.FindCell(0, 0, 0);
+            m_Mgr.SetObserver(1, 5f, 5f);
+            Tick();
+            m_Mgr.SetObserver(1, 500f, 500f);
+            Tick();
+            Assert.AreEqual(StreamingCellState.Cancelling, m_Mgr.GetCellState(id));
+
+            if (returnBeforeCompletion) m_Mgr.SetObserver(1, 5f, 5f);
+            Tick(); // 在取消完成前先消耗观察者移动引起的评估；之后不再移动。
+            Assert.AreEqual(StreamingCellState.Cancelling, m_Mgr.GetCellState(id));
+            m_Mgr.NotifyLoaded(id, false);
+            Assert.AreEqual(StreamingCellState.Unloaded, m_Mgr.GetCellState(id));
+            Assert.AreEqual(0, m_Mgr.TotalLoadFailures, "取消完成不应记为加载错误");
+
+            Tick();
+            Assert.AreEqual(returnBeforeCompletion ? StreamingCellState.Loading : StreamingCellState.Unloaded,
+                m_Mgr.GetCellState(id));
+            Assert.AreEqual(returnBeforeCompletion ? 2 : 1, m_Mgr.TotalLoadsStarted);
+        }
+
         [Test]
         public void LoadFailure_ReturnsToUnloaded_AndRetriesOnNextEvaluation()
         {

@@ -27,13 +27,14 @@ internal static class Benchmark
         systems.Add(new MovementSystem(world));
         const int warmup = 100;
         const int iterations = 200;
-        for (int i = 0; i < warmup; i++) systems.Update(0.5f);
+        var time = EcsTime.ForFrame(0.5);
+        for (int i = 0; i < warmup; i++) systems.Update(in time);
         var elapsed = new double[iterations];
         long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < iterations; i++)
         {
             long start = Stopwatch.GetTimestamp();
-            systems.Update(0.5f);
+            systems.Update(in time);
             elapsed[i] = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
         }
         long allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;

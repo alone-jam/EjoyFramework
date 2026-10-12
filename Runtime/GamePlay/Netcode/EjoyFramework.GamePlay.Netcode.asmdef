@@ -3,6 +3,7 @@
     "rootNamespace": "EjoyFramework.GamePlay",
     "references": [
         "EjoyFramework.Core",
+        "EjoyFramework.Core.Ecs",
         "EjoyFramework.GamePlay.Core"
     ],
     "includePlatforms": [],

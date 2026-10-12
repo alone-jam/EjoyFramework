@@ -73,6 +73,7 @@ m_Hits.Fire(hit);                                               // 任意线程�
 | SlotMap 句柄 | (下标, 代数)：奇数代表占用，偶数代表空闲；default 句柄无效；删除后旧句柄失配。某槽位代数用尽（2^31 次复用）后永久退役，不会回绕误配。`Packed` / `FromPacked` 与 ulong 互转（存档、网络、日志）。句柄不带元素类型，不同 SlotMap 的句柄不要混用 |
 | SlotMap 遍历 | 值稠密存放；删除是 swap-remove，稠密顺序会变，不要依赖。边遍历边删：按稠密下标倒序 `RemoveAt` |
 | 枚举 | 全部是 struct 枚举器，`foreach (ref var x in c)` 可原地修改元素；枚举期间做结构修改会抛出（原地改元素不算） |
+| 大容量寻址 | RingBuffer / Deque 的物理下标先判断回绕再相加，避免合法大容量下 `head + index` 的 int 溢出；不改变数组分配上限 |
 | 集合线程 | 全部非线程安全，与 `List<T>` 相同 |
 | EventChannel 线程 | 通道属于一个线程：`GetChannel` 取的属于 Framework 主线程，自建通道在第一次调用订阅 / FireNow 等 API 时绑定。只有 `Fire` 可在任意线程调用，其余 API 在其他线程调用会抛出。检查始终生效，不随构建配置裁剪 |
 | EventChannel 派发 | 按订阅顺序调用；排队事件按 Fire 的先后派发。派发中新订阅的处理器不参与本轮（但参与处理器内嵌套的 FireNow）；派发中退订、本轮还没轮到的处理器不再调用（与 GameEventArgs 的快照语义不同）；处理器内 Fire 的事件留到下一次派发；`DispatchQueued` 不可重入 |
@@ -80,7 +81,7 @@ m_Hits.Fire(hit);                                               // 任意线程�
 | EventChannel 订阅 | 重复订阅同一处理器（同目标 + 同方法）抛出；`Unsubscribe` 找不到时抛出，`TryUnsubscribe` 返回 false。关停后 Fire 被丢弃、订阅被忽略（打一条警告）、退订不抛出 |
 | EventChannel 队列 | 按 2 倍扩容后复用，不丢事件；突发量级超出预期时会分配一次，之后稳态为 0 |
 | EventManager 驱动 | `Update` 先派发 GameEventArgs 队列，再按通道创建顺序派发各通道的排队事件；`Shutdown` 一并关闭；关停后才取的通道直接处于关停态 |
-| GameEventArgs 线程契约 | M2 起真实生效，不再依赖 Release 下被裁掉的 `EnsureMainThread`：Fire 任意线程；Subscribe / Unsubscribe / TryUnsubscribe / Check / Count / SetDefaultHandler 任意线程（订阅表加锁；另一线程退订返回后，已拍好快照的那一轮仍可能再调用该处理器一次）；Update 同一时刻只允许一个线程且不可在处理器内重入，违反时抛出；FireNow 在调用线程同步执行（EventManager 在编辑器 / 开发构建下断言主线程）；关停后 Fire 直接回收参数、Unsubscribe 不再抛出，关停时逐个事件记录未退订的处理器（Debug 级） |
+| GameEventArgs 线程契约 | M2 起真实生效，不再依赖 Release 下被裁掉的 `EnsureMainThread`：Fire 任意线程；Subscribe / Unsubscribe / TryUnsubscribe / Check / Count / SetDefaultHandler 任意线程（订阅表加锁；另一线程退订返回后，已拍好快照的那一轮仍可能再调用该处理器一次）；Update 同一时刻只允许一个线程且不可在处理器内重入，违反时抛出；FireNow 在调用线程同步执行（EventManager 在编辑器 / 开发构建下断言主线程）；关停后 Fire 直接回收参数、Unsubscribe 不再抛出、Subscribe / SetDefaultHandler 忽略注册（Subscribe 的 null 参数仍抛出），等待订阅锁的工作线程也不能重新安装处理器；关停时逐个事件记录未退订的处理器（Debug 级） |
 
 ## FPSSample 对照
 
@@ -103,6 +104,7 @@ m_Hits.Fire(hit);                                               // 任意线程�
 |---|---|
 | `EjoyFramework.Core` 独立编译（netstandard2.1 / C# 9，dotnet） | 通过（2026-09-28） |
 | 纯逻辑测试在 CoreCLR + NUnit 上运行：M2 新增 81 例 + EventPool / EventManager 原有 16 例回归，共 97 例 | 通过（2026-09-28）；零分配按 `GC.GetAllocatedBytesForCurrentThread` 计，不能代替 Mono 的 GC.Alloc recorder |
+| 本次审查修复：关停后的注册及锁竞争、RingBuffer / Deque 大容量寻址回归测试 | 已添加，执行待补；上面的 97 例是修复前的历史结果，不覆盖本次改动 |
 | Unity EditMode / PlayMode 全量（unity-cli） | 待补：Mac 上尚未安装 Unity |
 | Mono 下的零分配断言与基准数值 | 待补 |
 | IL2CPP 真机 | 待补 |

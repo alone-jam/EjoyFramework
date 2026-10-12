@@ -334,8 +334,14 @@ namespace EjoyFramework.Core
 
         private int PhysicalIndex(int logicalIndex)
         {
-            int index = m_Head + logicalIndex;
-            return index >= m_Items.Length ? index - m_Items.Length : index;
+            return PhysicalIndex(m_Head, logicalIndex, m_Items.Length);
+        }
+
+        // head / logicalIndex 均在 [0, capacity) 内；先判断回绕，避免大容量下相加溢出。
+        internal static int PhysicalIndex(int head, int logicalIndex, int capacity)
+        {
+            int remaining = capacity - head;
+            return logicalIndex >= remaining ? logicalIndex - remaining : head + logicalIndex;
         }
 
         // 已满时按策略腾位置；返回 false 表示拒绝。

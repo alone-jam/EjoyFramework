@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>EjoyFramework.Core</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Compile the real Core dependency without suppressing its existing warnings. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Ecs/EjoyFramework.Core.Ecs.csproj" />
+    <Compile Include="../../Runtime/Core/**/*.cs"
+             Exclude="../../Runtime/Core/Ecs/**/*.cs;../../Runtime/Core/Blobs/**/*.cs" />
+  </ItemGroup>
+</Project>

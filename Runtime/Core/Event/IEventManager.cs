@@ -14,7 +14,7 @@ namespace EjoyFramework.Core.Event
     ///   • Subscribe / Unsubscribe / TryUnsubscribe / Check / Count / SetDefaultHandler：任意线程（订阅表加锁）；
     ///     另一线程退订返回后，已开始的那一轮派发仍可能再调用该处理器一次。
     ///   • FireNow：处理器在调用线程同步执行，按惯例只在主线程调用（编辑器 / 开发构建下断言）。
-    ///   • 关停后 Fire 的事件直接回收、Unsubscribe 不再抛出。
+    ///   • 关停后 Fire 的事件直接回收、Unsubscribe 不再抛出；Subscribe / SetDefaultHandler 忽略注册，参数校验不变。
     /// 每帧高频事件改用 <see cref="GetChannel{T}"/> 的 struct 通道（无引用池往返、无装箱）。
     /// </summary>
     public interface IEventManager

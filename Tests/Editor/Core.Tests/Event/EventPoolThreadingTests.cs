@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 using EjoyFramework.Core;
 using EjoyFramework.Core.Event;
@@ -210,6 +211,100 @@ namespace EjoyFramework.Tests.Event
             Assert.AreEqual(0, em.EventCount);
             em.Update(0.016f, 0.016f);
             Assert.AreEqual(0, hits);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Registration_AfterShutdown_IsIgnored(bool useDefaultHandler)
+        {
+            var pool = new EventPool<GameEventArgs>(EventPoolMode.AllowNoHandler);
+            int hits = 0;
+            EventHandler<GameEventArgs> handler = (s, e) => hits++;
+            pool.Shutdown();
+
+            if (useDefaultHandler) pool.SetDefaultHandler(handler);
+            else pool.Subscribe(PingId, handler);
+
+            Assert.AreEqual(0, pool.EventHandlerCount);
+            Assert.IsFalse(pool.Check(PingId, handler));
+            int before = CountingArgs.ClearCount;
+            pool.FireNow(null, ReferencePool.Acquire<CountingArgs>());
+            Assert.AreEqual(0, hits, "关停后不能通过重新注册恢复派发");
+            Assert.AreEqual(before + 1, CountingArgs.ClearCount, "参数仍需回收");
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Registration_WaitingAcrossShutdown_IsIgnored(bool useDefaultHandler)
+        {
+            var pool = new EventPool<GameEventArgs>(EventPoolMode.AllowNoHandler);
+            int hits = 0;
+            EventHandler<GameEventArgs> handler = (s, e) => hits++;
+            RunRegistrationAcrossShutdown(pool, () =>
+            {
+                if (useDefaultHandler) pool.SetDefaultHandler(handler);
+                else pool.Subscribe(PingId, handler);
+            });
+
+            Assert.IsTrue(pool.IsShutdown);
+            Assert.AreEqual(0, pool.EventHandlerCount);
+            Assert.IsFalse(pool.Check(PingId, handler));
+            pool.FireNow(null, ReferencePool.Acquire<PingArgs>());
+            Assert.AreEqual(0, hits, "等待订阅锁的工作线程不能在关停后安装处理器");
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Registration_NullValidation_IsPreserved(bool shutdown)
+        {
+            var pool = new EventPool<GameEventArgs>(EventPoolMode.AllowNoHandler);
+            int hits = 0;
+            pool.SetDefaultHandler((s, e) => hits++);
+            if (shutdown) pool.Shutdown();
+
+            Assert.Throws<FrameworkException>(() => pool.Subscribe(PingId, null));
+            Assert.DoesNotThrow(() => pool.SetDefaultHandler(null));
+            pool.FireNow(null, ReferencePool.Acquire<PingArgs>());
+            Assert.AreEqual(0, hits, "null 仍可清除默认处理器");
+            pool.Shutdown();
+        }
+
+        private static void RunRegistrationAcrossShutdown(EventPool<GameEventArgs> pool, Action registration)
+        {
+            // 仅测试反射：控制既有锁，不给玩家代码添加测试回调或同步钩子。
+            FieldInfo field = typeof(EventPool<GameEventArgs>).GetField(
+                "m_HandlerLock", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(field);
+            object handlerLock = field.GetValue(pool);
+            Exception error = null;
+            using (var started = new ManualResetEventSlim(false))
+            {
+                var worker = new Thread(() =>
+                {
+                    try
+                    {
+                        started.Set();
+                        registration();
+                    }
+                    catch (Exception ex) { error = ex; }
+                });
+                worker.IsBackground = true;
+                Monitor.Enter(handlerLock);
+                try
+                {
+                    worker.Start();
+                    Assert.IsTrue(started.Wait(10000), "工作线程应已开始注册");
+                    // 当前线程可重入锁完成关停；工作线程必须等到关停清理完成才获得锁。
+                    pool.Shutdown();
+                }
+                finally
+                {
+                    Monitor.Exit(handlerLock);
+                    Assert.IsTrue(worker.Join(10000), "释放订阅锁后工作线程应完成");
+                }
+            }
+
+            Assert.IsNull(error, "工作线程注册不应抛出");
         }
 
         [Test]

@@ -43,7 +43,7 @@ ws.ShiftOrigin(delta);
 | 优先级 | 键 = 最近距离 + `PriorityBias × CellSize`；每次评估排队单元按新距离重排（旧堆项凭入队戳丢弃） |
 | 预算 | `MaxLoadStartsPerFrame` / `MaxLoadsInFlight` / `MaxUnloadsPerFrame`；预算不足的动作顺延到后续帧 |
 | 评估触发 | 观察者移动超过 `ReevaluateMoveThreshold`（默认 CellSize/4）、配置/登记变化、`ForceReevaluate` |
-| 取消 | 加载中离开半径 → `CancelLoad`，状态 `Cancelling`；迟到的成功结果自动转为卸载 |
+| 取消 | 加载中离开半径 → `CancelLoad`，状态 `Cancelling`；迟到的成功结果自动转为卸载。若取消期间观察者已返回，失败回报完成后会重新评估并加载，不需再次移动观察者 |
 | 失败 | `NotifyLoaded(id, false)` → 回到 Unloaded 并计数；下次评估自动重试 |
 | 注销 | 已加载先卸载、加载中先取消；槽位在最终回报后释放，旧 id 查询得到 `None` |
 | 浮动原点 | 内部一律世界坐标；`ShiftOrigin` 累加偏移，观察者本地坐标按新原点换算，单元不动 |
@@ -54,7 +54,7 @@ ws.ShiftOrigin(delta);
 - 全部回调在主线程；`BeginLoad` / `BeginUnload` 可同步完成（回调内直接 `Notify*`）。
 - 回调抛异常：加载按失败处理、卸载按已卸载处理，不会卡死状态机。
 - `CancelLoad` 后**仍必须**回报 `NotifyLoaded`（成功或失败），管理器据此收尾；不能取消的 IO（场景）直接等结果。
-- 一次 `BeginLoad` 只能配对一次 `NotifyLoaded`；重复回报被忽略并告警。
+- 一次 `BeginLoad` 必须配对恰好一次 `NotifyLoaded`，一次 `BeginUnload` 配对一次 `NotifyUnloaded`。管理器忽略不符合当前状态的回报并告警，但**这不是完整的重复/旧回报防护**：回报只有 cellId，没有操作代数，旧回报若在该 id 重新加载后到达，无法与新操作的合法回报区分。处理器必须遵守单次完成契约；需要容忍此类错误生产者时，须端到端扩展带操作 token 的协议，不能仅靠本地计数器补救。
 
 ## 内置 SceneStreamingHandler
 
@@ -84,6 +84,39 @@ mgr.SetHandler(persistence);
 
 `WorldStateStore` 与 Save 模块组合：`store.ToArray()` 放进存档结构（或 `WorldStateSaveData`），读档后 `store.Load(bytes)`；
 `IsDirty` 供自动存档节流。格式带魔数与版本，损坏数据读入失败时存储保持为空。
+
+## ECS 流送桥
+
+`EcsStreamingHandler` 将 IO 完成与 ECS 分帧生成/销毁分离。Core 显式单向引用 Core.Ecs；桥借用同一 EcsLoop 的 World，不拥有 Loop、World、Inner 或 populator。所有入口必须在构造线程调用；Loop/World 的生命周期必须覆盖桥的全部活动操作。
+
+```csharp
+// 动作：manager -> persistence -> bridge -> IO
+// 回报：IO -> bridge -> persistence -> manager
+var persistence = new PersistentStreamingHandler(manager, manager, store, serializer);
+var bridge = new EcsStreamingHandler(persistence, ecsDriver.Loop, populator);
+persistence.Inner = bridge;
+bridge.Inner = new MyIoHandler(bridge); // IO 的 Notify* 目标必须是 bridge。
+manager.SetHandler(persistence);
+ecsDriver.UpdateMode = EcsUpdateMode.Manual;
+
+// 在统一主线程驱动点，每帧按此顺序；不要再由另一处重复推进 manager/driver。
+manager.Update(deltaTime, deltaTime);
+int creates = 32, despawnRequests = 64;
+bridge.Pump(ref creates, ref despawnRequests);
+ecsDriver.Step(deltaTime);
+```
+
+- `BeginLoad` 在调用 Inner 前安装操作，捕获只读 `CellPopulationContext`（CellId、Layer、Cx/Cz、ContentKey、InitialLod、Generation、PartitionKey），每次尝试使用 World.ReservePartitionKey 的新键。清理不查询 manager.TryGetCell，因此注销后元数据仍有效。`TryGetContext` 可供 serializer/业务访问当前操作的键。
+- IO 回报只记录状态、排队；同步 NotifyLoaded(true) 不生成实体，也不立即回报下游。Pump 在结构安全点调用 `ICellEntityPopulator.Populate(World, in context, ref remainingCreateBudget, ref cursor)`，每次 Pump 中每个已排队操作最多执行一次，共享创建/新增销毁请求预算。0 预算仍能完成无需创建/请求的终结记账。创建预算为 0 时不调用 populator，即使它可能产生空内容。
+- populator 的 cursor 从 0 开始且不得回退；预算必须为非负且不得增加，每创建一个实体消耗一个预算。必须在 CreateEntity 后**立即** SetPartition 到 context.PartitionKey，再做可能失败的初始化；返回前初始化本次创建的实体。不得保留借用 ref、释放借用 World、移动/清空分区关系假装已清理或释放桥持有的键。返回 true 才表示整个代数完成。异常或不合法输出会耗尽该次剩余创建预算并进入取消清理，避免把未知消耗再次分配出去。
+- **部分实体仍可见。** 推迟 NotifyLoaded 不会让 ECS 查询自动隐藏已创建的实体。业务应使用 readiness 组件/查询约定（例如生成时 Ready=false，常规模拟跳过它，整个分区完成后统一设为 true）；失败或取消不得宣布 Ready。持久化 Restore 在整个生成完成后、manager 得到成功前执行；正常卸载先由 persistence Capture，再进入桥清理。取消和生成失败只向外回报失败，不把部分内容送入 Restore/Capture。
+- CancelLoad 先标记取消再调用 Inner.CancelLoad，仍等待加载的终结回报。迟到成功不向外发成功：先清理 ECS，再调用 Inner.BeginUnload，等卸载回报后才发 NotifyLoaded(false)。正常卸载同样先预算化请求销毁，等待 GetPartitionCount 为 0（包含 pending，不能提前清空关系），才开始 IO 卸载并最终 NotifyUnloaded。后续 LOD 仅在 Loaded 时透传，不重建代数。
+- 操作在实体物理清除、IO 终结及旧工作令牌失效后才释放键。内部队列携带代数并验证当前操作身份；外部调用后不覆盖同步重入造成的取消、卸载或新加载。成功/终结状态在下游回调前设置，回调中的 Pump 重入被拒绝，但正常取消/卸载/下一代加载动作可被记录。
+- Inner 调用若在可能启动 IO 后抛异常，桥内部记录错误并保留操作，不让 manager 把异常误当终结。`TryGetFault`/`LastError` 用于诊断；仍需真实终结回报，桥不会猜测 IO 已结束或重试可能重复启动的卸载。下游回调抛异常也不自动重发，因为其副作用可能已执行。
+- Pump 必须位于 ISystem 外，拒绝正在运行或故障态的 Loop，也拒绝外部回调重入。Inner 只能在无活动操作时替换；Dispose 也要求无加载中、已加载或清理中操作，不释放借用对象。操作对象按加载尝试分配，不做危险的提前复用；队列/字典容量、首次组件/实体/分区扩容属于冷分配，预热后的 Pump 自身无稳态分配目标仍待执行测试验证。
+- **v1 只支持上文 exactly-once 的合规 IO。** 本地代数仅保护桥队列；旧重复 IO 回报若在相同 cellId 新加载后到达仍无法识别。这里没有增加端到端 IO token，也不宣称容忍该违约行为。
+
+桥回归测试已编写，涵盖同步回调、共享/零预算、取消、重入、元数据捕获、持久化顺序、异常清理与分配检测；尚未编译或执行，不代表已通过验证。
 
 ## 未做 / 后续
 

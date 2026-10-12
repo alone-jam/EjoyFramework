@@ -6,6 +6,8 @@ namespace EjoyFramework.Core.Ecs
     /// <summary>
     /// 单线程、按记录顺序回放。创建立即预留句柄，Playback 后才参与查询。
     /// 回放失败保留已完成的操作，丢弃剩余命令并释放未激活的预留；不提供事务回滚。
+    /// During EcsLoop replay only existing-component Set recording is allowed. Ordinary Playback
+    /// remains structural-safe; the loop uses internal value-only playback after each system.
     /// </summary>
     public sealed class CommandBuffer : IDisposable
     {
@@ -60,15 +62,19 @@ namespace EjoyFramework.Core.Ecs
             return entity;
         }
 
+        /// <summary>Records a despawn request; playback does not immediately destroy components.</summary>
         public void DestroyEntity(Entity entity)
         {
             Validate(entity);
+            m_World.RequireNotReplaying();
             m_Commands.Add(new Command { Kind = Kind.Destroy, Entity = entity });
         }
 
         public void Set<T>(Entity entity, T value) where T : struct
         {
             Validate(entity);
+            if (m_World.IsReplaying && !m_World.Has<T>(entity))
+                throw new InvalidOperationException("Replay commands may only set existing components.");
             var values = GetValues<T>();
             int index = values.Add(value);
             m_Commands.Add(new Command { Kind = Kind.Set, Entity = entity, Values = values, ValueIndex = index });
@@ -77,6 +83,7 @@ namespace EjoyFramework.Core.Ecs
         public void Remove<T>(Entity entity) where T : struct
         {
             Validate(entity);
+            m_World.RequireNotReplaying();
             m_Commands.Add(new Command { Kind = Kind.Remove, Entity = entity, Values = GetValues<T>() });
         }
 
@@ -85,15 +92,30 @@ namespace EjoyFramework.Core.Ecs
             RequireUsable();
             // A rejected synchronization point preserves the pending buffer for later playback.
             m_World.RequireStructuralChange();
+            PlaybackCore(replay: false);
+        }
+
+        internal void PlaybackReplay()
+        {
+            RequireUsable();
+            m_World.RequireOutsideIteration();
+            if (!m_World.IsReplaying) throw new InvalidOperationException("Value-only playback requires an active replay.");
+            PlaybackCore(replay: true);
+        }
+
+        private void PlaybackCore(bool replay)
+        {
             try
             {
                 for (int i = 0; i < m_Commands.Count; i++)
                 {
                     var command = m_Commands[i];
+                    if (replay && command.Kind != Kind.Set)
+                        throw new InvalidOperationException("Structural commands cannot execute during replay.");
                     switch (command.Kind)
                     {
                         case Kind.Create: m_World.Activate(command.Entity, this); break;
-                        case Kind.Destroy: m_World.DestroyEntity(command.Entity); break;
+                        case Kind.Destroy: m_World.RequestDespawn(command.Entity); break;
                         case Kind.Set: command.Values.Set(m_World, command.Entity, command.ValueIndex); break;
                         case Kind.Remove: command.Values.Remove(m_World, command.Entity); break;
                     }
@@ -122,6 +144,7 @@ namespace EjoyFramework.Core.Ecs
         internal void Release()
         {
             if (m_Disposed) return;
+            if (!m_World.IsDisposed) m_World.RequireNotReplaying();
             Clear();
             m_Commands.Capacity = 0;
             m_Values.Clear();

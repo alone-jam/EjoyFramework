@@ -25,6 +25,7 @@ namespace EjoyFramework.Core
     ///   • Subscribe / Unsubscribe / TryUnsubscribe / Check / Count / EventHandlerCount / SetDefaultHandler：任意线程。
     ///     订阅表在锁内修改；派发在锁内拍快照、锁外调用处理器，所以另一线程退订返回后，
     ///     已拍好快照的那一轮派发仍可能再调用该处理器一次。
+    ///     关停后 Subscribe / SetDefaultHandler 忽略注册；Subscribe 的 null 参数仍抛出。
     ///   • Update：同一时刻只允许一个线程、且不可在处理器内重入，违反时抛出（双队列交换只对单一消费者成立）。
     ///   • FireNow：在调用线程同步执行处理器；池本身的状态在任意线程都一致，但处理器通常要求主线程，
     ///     EventManager 在编辑器 / 开发构建下对 FireNow 做主线程断言。
@@ -218,6 +219,12 @@ namespace EjoyFramework.Core
 
             lock (m_HandlerLock)
             {
+                // 与订阅表修改同锁检查，避免等待锁的注册在关停清理后重新安装处理器。
+                if (m_IsShutdown)
+                {
+                    return;
+                }
+
                 if ((m_EventPoolMode & EventPoolMode.AllowMultiHandler) == 0)
                 {
                     GameLinkedListRange<EventHandler<T>> range = default(GameLinkedListRange<EventHandler<T>>);
@@ -275,6 +282,11 @@ namespace EjoyFramework.Core
         {
             lock (m_HandlerLock)
             {
+                if (m_IsShutdown)
+                {
+                    return;
+                }
+
                 m_DefaultHandler = handler;
             }
         }

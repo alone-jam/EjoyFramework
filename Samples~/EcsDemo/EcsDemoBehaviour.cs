@@ -13,7 +13,7 @@ namespace EjoyGame.Samples.EcsDemo
         private void Start()
         {
             var driver = GetComponent<EcsWorldComponent>();
-            var scenario = new ProjectileScenario(driver.World, driver.Systems);
+            var scenario = new ProjectileScenario(driver.World, driver.Loop);
             var target = scenario.SpawnTarget(5, 100);
             var projectile = scenario.Fire(0, target, 2, 100);
             m_Target = CreateView(driver.World, target, PrimitiveType.Cube, 1);

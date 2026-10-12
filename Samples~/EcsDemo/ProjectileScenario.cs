@@ -1,3 +1,4 @@
+using System;
 using EjoyFramework.Core.Ecs;
 
 namespace EjoyGame.Samples.EcsDemo
@@ -22,6 +23,15 @@ namespace EjoyGame.Samples.EcsDemo
             systems.Add(new DeathSystem(world), 30);
         }
 
+        public ProjectileScenario(World world, EcsLoop loop)
+        {
+            m_World = world;
+            loop.Add(EcsPhase.TickSimulation, new MovementSystem(world), 0);
+            loop.Add(EcsPhase.TickResolve, new HitSystem(world), 10);
+            loop.Add(EcsPhase.TickResolve, new DamageSystem(world), 20);
+            loop.Add(EcsPhase.TickResolve, new DeathSystem(world), 30);
+        }
+
         public Entity SpawnTarget(float x, int health)
         {
             var entity = m_World.CreateEntity();
@@ -40,18 +50,30 @@ namespace EjoyGame.Samples.EcsDemo
         }
     }
 
+    /// <summary>
+    /// Float-based sample movement. Rejects deltas above float.MaxValue before iteration;
+    /// callers must still keep positions, velocities and movement results within float range.
+    /// </summary>
     public sealed class MovementSystem : ISystem
     {
         private readonly Query m_Query;
-        private readonly ComponentAction<Position, Velocity> m_Move;
-        private float m_DeltaTime;
-        public MovementSystem(World world) { m_Query = world.Query(); m_Move = Move; }
-        public void Update(World world, CommandBuffer commands, float deltaTime)
+        private MovementVisitor m_Visitor;
+        public MovementSystem(World world) => m_Query = world.Query();
+        public void Update(World world, CommandBuffer commands, in EcsTime time)
         {
-            m_DeltaTime = deltaTime;
-            m_Query.ForEach(m_Move);
+            if (time.DeltaTime > float.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(time),
+                    "This float-based sample requires DeltaTime at most float.MaxValue.");
+            m_Visitor.DeltaTime = (float)time.DeltaTime;
+            m_Query.ForEach<MovementVisitor, Position, Velocity>(ref m_Visitor);
         }
-        private void Move(Entity entity, ref Position position, ref Velocity velocity) => position.X += velocity.X * m_DeltaTime;
+
+        private struct MovementVisitor : IEntityVisitor<Position, Velocity>
+        {
+            public float DeltaTime;
+            public void Visit(Entity entity, ref Position position, ref Velocity velocity)
+                => position.X += velocity.X * DeltaTime;
+        }
     }
 
     internal sealed class HitSystem : ISystem
@@ -61,7 +83,7 @@ namespace EjoyGame.Samples.EcsDemo
         private readonly ComponentAction<Position, Velocity, Projectile> m_Check;
         private CommandBuffer m_Commands;
         public HitSystem(World world) { m_World = world; m_Query = world.Query().WithNone<Hit>(); m_Check = Check; }
-        public void Update(World world, CommandBuffer commands, float deltaTime)
+        public void Update(World world, CommandBuffer commands, in EcsTime time)
         {
             m_Commands = commands;
             m_Query.ForEach(m_Check);
@@ -81,7 +103,7 @@ namespace EjoyGame.Samples.EcsDemo
         private readonly ComponentAction<Hit> m_Apply;
         private CommandBuffer m_Commands;
         public DamageSystem(World world) { m_World = world; m_Query = world.Query(); m_Apply = Apply; }
-        public void Update(World world, CommandBuffer commands, float deltaTime)
+        public void Update(World world, CommandBuffer commands, in EcsTime time)
         {
             m_Commands = commands;
             m_Query.ForEach(m_Apply);
@@ -99,7 +121,7 @@ namespace EjoyGame.Samples.EcsDemo
         private readonly ComponentAction<Health> m_Remove;
         private CommandBuffer m_Commands;
         public DeathSystem(World world) { m_Query = world.Query(); m_Remove = Remove; }
-        public void Update(World world, CommandBuffer commands, float deltaTime)
+        public void Update(World world, CommandBuffer commands, in EcsTime time)
         {
             m_Commands = commands;
             m_Query.ForEach(m_Remove);

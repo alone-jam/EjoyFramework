@@ -13,6 +13,9 @@
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
     <Compile Include="../../Tests/Editor/Core.Tests/Ecs/**/*.cs" />
     <Compile Include="../../Samples~/EcsDemo/ProjectileScenario.cs" />
+    <Compile Include="../../Samples~/EcsDemo/PredictionCorrectionState.cs" />
+    <Compile Include="../../Samples~/EcsDemo/PredictionCorrectionScenario.cs" />
+    <Compile Include="PredictionCorrectionTests.cs" />
     <Compile Include="ScenarioTests.cs" />
     <Compile Include="DisposalTests.cs" />
   </ItemGroup>

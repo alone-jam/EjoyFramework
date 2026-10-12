@@ -22,6 +22,17 @@ namespace EjoyFramework.Tests.Collections
             public long Payload1;
         }
 
+        [TestCase(4, 0, 3, 3)]
+        [TestCase(4, 3, 0, 3)]
+        [TestCase(4, 3, 1, 0)]
+        [TestCase(1500000000, 1000000000, 1200000000, 700000000)]
+        [TestCase(2147483646, 2147483645, 2147483645, 2147483644)]
+        public void PhysicalIndex_LargeCapacity_DoesNotOverflow(int capacity, int head, int logicalIndex, int expected)
+        {
+            // 直接验证实际寻址使用的算术，避免为边界测试分配 GB 级数组。
+            Assert.AreEqual(expected, RingBuffer<byte>.PhysicalIndex(head, logicalIndex, capacity));
+        }
+
         [Test]
         public void Push_Pop_IsFifo()
         {

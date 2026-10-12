@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using EjoyFramework.Core;
 
 namespace EjoyFramework.GamePlay.Netcode.Transport
@@ -13,12 +14,18 @@ namespace EjoyFramework.GamePlay.Netcode.Transport
     /// 进程内回环传输（确定性，<b>无套接字 / 无线程</b>）。用于单元测试与单进程内的 Host+Client。
     /// <para>
     /// 通过 <see cref="CreatePair"/> 创建一对已配对的服务器 / 客户端实例：二者共享一个内部路由器，
-    /// 所有投递都进入<b>各实例自己的事件队列</b>，仅在该实例的 <see cref="Poll"/> 中按入队顺序排空触发，
+    /// 所有投递都进入<b>各实例自己的事件队列</b>，仅在该实例的 <see cref="Poll()"/> 中按入队顺序排空触发，
     /// 因此完全确定性且有序。支持多个客户端连接同一服务器（connectionId 自增分配）。
     /// </para>
-    /// 单线程使用，非线程安全。
+    /// 单线程使用，非线程安全；发送、路由及生命周期操作仍遵守原有 owner-thread 契约。
+    /// <para>两个 Poll 重载共享单消费者守卫，拒绝同实例并发 / 回调重入（抛出
+    /// <see cref="InvalidOperationException"/>）；这是对原先不支持的重入行为的显式收紧，
+    /// 并不使其余操作线程安全。参数为空的 Poll 仍按入口队列计数快照派发。</para>
+    /// <para><see cref="Poll(int, int)"/> 只限制事件消费数及投递数据字节数，不限制回调耗时、
+    /// 发送 / 生命周期成本或队列内存，也不认证连接身份。原有 payload 拷贝、集合快照、
+    /// GetInvocationList 及异常日志分配仍然存在，并非零 GC 传输。</para>
     /// </summary>
-    public sealed class LoopbackTransport : INetTransport
+    public sealed class LoopbackTransport : IBudgetedNetTransport
     {
         // 排队事件的种类。
         private enum EventKind
@@ -81,6 +88,10 @@ namespace EjoyFramework.GamePlay.Netcode.Transport
 
         private readonly LoopbackRouter m_Router;
         private readonly Queue<QueuedEvent> m_EventQueue = new Queue<QueuedEvent>();
+        // 仅防止两个消费者交错 Peek / Dequeue；不保护并发生产者或生命周期操作。
+        private int m_PollActive;
+        // Shutdown 清空队列后使有界 Poll 的入口快照失效，避免消费回调中新入队的替代事件。
+        private int m_QueueClearVersion;
 
         private bool m_IsServer;
         private bool m_IsClient;
@@ -330,14 +341,77 @@ namespace EjoyFramework.GamePlay.Netcode.Transport
             }
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// 按入口队列计数快照派发全部事件，不限制数据字节数；回调新增事件留到下次 Poll。
+        /// </summary>
+        /// <exception cref="InvalidOperationException">同一实例已有 Poll 正在执行（包括回调重入）。</exception>
         public void Poll()
         {
-            // 排空当前队列。先取出计数快照，避免回调内再次入队导致无限循环（本帧只处理已入队的）。
-            int count = m_EventQueue.Count;
-            for (int i = 0; i < count; i++)
+            EnterPoll();
+            try
             {
-                QueuedEvent evt = m_EventQueue.Dequeue();
+                // 保留原有计数快照循环，不委托给带 int.MaxValue 字节上限的重载。
+                int count = m_EventQueue.Count;
+                for (int i = 0; i < count; i++)
+                {
+                    QueuedEvent evt = m_EventQueue.Dequeue();
+                    Dispatch(evt);
+                }
+            }
+            finally
+            {
+                Volatile.Write(ref m_PollActive, 0);
+            }
+        }
+
+        /// <inheritdoc />
+        public void Poll(int maxEvents, int maxDataBytes)
+        {
+            if (maxEvents < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxEvents));
+            if (maxDataBytes < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxDataBytes));
+
+            EnterPoll();
+            try
+            {
+                PollBudgeted(maxEvents, maxDataBytes);
+            }
+            finally
+            {
+                Volatile.Write(ref m_PollActive, 0);
+            }
+        }
+
+        private void EnterPoll()
+        {
+            if (Interlocked.CompareExchange(ref m_PollActive, 1, 0) != 0)
+                throw new InvalidOperationException("LoopbackTransport.Poll cannot overlap or reenter on the same instance.");
+        }
+
+        private void PollBudgeted(int maxEvents, int maxDataBytes)
+        {
+            int count = Math.Min(m_EventQueue.Count, maxEvents);
+            int queueClearVersion = m_QueueClearVersion;
+            int remainingBytes = maxDataBytes;
+            for (int i = 0; i < count && queueClearVersion == m_QueueClearVersion; i++)
+            {
+                QueuedEvent evt = m_EventQueue.Peek();
+                int dataBytes = evt.Kind == EventKind.Data ? evt.Payload.Length : 0;
+                if (dataBytes > remainingBytes)
+                {
+                    // 暂停，或仅本轮剩余字节不足：保持队头与 FIFO，不能跳过后派发控制事件。
+                    if (maxDataBytes == 0 || dataBytes <= maxDataBytes)
+                        break;
+
+                    // 单包超过正数总预算：永久丢弃，仍占一次事件预算，但不占投递字节预算。
+                    m_EventQueue.Dequeue();
+                    continue;
+                }
+
+                // Peek 与 Dequeue 之间不调用用户代码；两个 Poll 重载共用同一个消费者守卫。
+                m_EventQueue.Dequeue();
+                remainingBytes -= dataBytes;
                 Dispatch(evt);
             }
         }
@@ -357,6 +431,7 @@ namespace EjoyFramework.GamePlay.Netcode.Transport
             }
 
             m_EventQueue.Clear();
+            unchecked { m_QueueClearVersion++; }
             m_ClientState = NetConnectionState.Disconnected;
             m_LocalConnectionId = -1;
         }

@@ -607,7 +607,7 @@ namespace EjoyFramework.Core.Streaming
             c.Lod = -1;
             m_ActiveCells.Remove(cellId);
             if (!c.InUse) ReleaseCell(cellId);
-            else if (wanted) m_Dirty = true;   // 失败后下次评估会重试
+            else if (wanted || c.DesiredStamp == m_Stamp) m_Dirty = true; // 失败重试，或取消期间观察者已返回。
         }
 
         public void NotifyUnloaded(int cellId)

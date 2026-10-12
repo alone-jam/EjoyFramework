@@ -3,6 +3,7 @@
     "rootNamespace": "EjoyFramework.GamePlay.Tests",
     "references": [
         "EjoyFramework.Core",
+        "EjoyFramework.Core.Ecs",
         "EjoyFramework.GamePlay.Core",
         "EjoyFramework.GamePlay.Combat",
         "EjoyFramework.GamePlay.Netcode",

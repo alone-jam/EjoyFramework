@@ -7,20 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The M2/M3/M4 development changes below have received scoped static reviews, but the combined package
+has not yet been compiled or exercised in Unity. Historical CoreCLR results for an earlier M2 revision
+are not validation of this integrated version; target-runtime allocations and coverage remain unmeasured.
+
 ### Added - Allocation-free collections and struct event channels
 
 - Added `RingBuffer<T>`, `Deque<T>`, `BitSet` and `SlotMap<T>` (with generational `SlotHandle`) under
-  `Runtime/Core/Collections/` in the `EjoyFramework.Core` namespace. All use struct enumerators and do not
-  allocate in steady state. `RingBuffer<T>` addresses elements by wrap-safe sequence numbers for tick history.
+  `Runtime/Core/Collections/` in the `EjoyFramework.Core` namespace. All use struct enumerators and target
+  allocation-free steady-state operation. `RingBuffer<T>` addresses elements by wrap-safe sequence numbers for tick history.
 - Added `EventChannel<T>` for struct events passed by `in`, and `IEventManager.GetChannel<T>()` /
   `EventComponent.GetChannel<T>()`. The event manager dispatches queued channel events every frame and
   closes the channels on shutdown.
 
+### Added - ECS simulation and prediction foundations
+
+- Added fixed-tick time, phased simulation, per-tick capture, and explicitly eligible value-only replay.
+  Replay preserves the real clock, rejects structural changes, and faults on cross-group command leakage.
+- Added idempotent two-stage despawn, struct query visitors, capacity reservation, indexed component-type
+  lookup, membership lifetimes, and sparse entity partitions with reserved ownership keys.
+- Added frozen replication schemas, owned authoritative baselines, interpolation/prediction histories,
+  exact-tick verification, and prevalidated single-/two-component state restoration.
+- Added the generation-owned ECS streaming decorator: shared creation/despawn-request budgets, physical
+  cleanup before IO unload, and persistence-aware cancellation/failure handling. It requires exactly-once IO callbacks.
+- Added a closed two-component correction sample with exact recorded inputs and explicit recovery gating.
+  It is not a general multi-entity rollback coordinator or a network/session implementation.
+
+### Added - Offline tick-input protocol
+
+- Added caller-buffer bit readers/writers with explicit LSB-first ordering, bounded cursors and canonical padding.
+- Added the versioned 32-byte EJTI command-frame header and codec, exact context/length checks, and
+  failure-atomic encode/decode with supported payload overlap.
+- Added a bounded peer-owned `TickCommandInbox` with exact tagged tick slots, semantic decoding,
+  first-valid-wins admission, and separate simulation/completed-command accounting. Admission has no
+  simulation callback or client-controlled duration; authenticated routing and ingress budgets remain owner responsibilities.
+- Added a narrow source-linked Netcode codec/admission test project. These independent layers do not
+  switch legacy sessions, authenticate peers, drive simulation from receipt, or implement a transport.
+
 ### Changed
+
+- ECS `ISystem.Update` now receives `in EcsTime`. The Unity driver registers systems through `Loop`,
+  accumulates fixed ticks from Update, and maps legacy FixedUpdate configuration to that path.
+- Command-buffer destruction now requests despawn. Default queries hide requested entities before
+  physical removal; standalone groups flush after successful dispatch, loops run bounded cleanup batches.
+- `EjoyFramework.Core` now references `EjoyFramework.Core.Ecs` for the streaming bridge. The ECS assembly
+  itself retains zero assembly references. Host projects with copied ECS samples must migrate their copies.
 
 - `EventPool` now locks its subscription table, so `Subscribe`, `Unsubscribe`, `TryUnsubscribe`, `Check`,
   `Count` and `SetDefaultHandler` are safe from any thread. `Update` rejects concurrent and re-entrant calls.
   After shutdown, `Fire` releases its arguments immediately and `Unsubscribe` no longer throws.
+  `Subscribe` and `SetDefaultHandler` ignore late registrations under the subscription lock, including
+  workers waiting across shutdown; `Subscribe(null)` still throws.
+- `RingBuffer` and `Deque` physical indexing avoids integer overflow at large valid capacities.
 - `IEventManager` gained the `GetChannel<T>()` member. Custom implementations of the interface must add it.
 - Moved `BinaryHeap`, `NoAllocSort`, `GameLinkedList` and `MultiDictionary` into `Runtime/Core/Collections/`.
   Their namespace and Unity GUIDs are unchanged.

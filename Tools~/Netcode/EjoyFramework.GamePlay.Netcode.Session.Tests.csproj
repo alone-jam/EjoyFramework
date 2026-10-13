@@ -21,5 +21,6 @@
     <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Session/TickSessionWelcomeTests.cs" />
     <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Session/TickPredictionCoordinatorTests.cs" />
     <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Transport/UdpNetTransportTests.cs" />
+      <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Session/PredictedEventLedgerTests.cs" />
   </ItemGroup>
 </Project>

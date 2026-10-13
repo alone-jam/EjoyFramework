@@ -50,6 +50,32 @@ namespace EjoyFramework.GamePlay.Tests
             Assert.That(client.TryGetCommand(3, out _), Is.False); Assert.That(client.TryGetCommand(4, out _), Is.True);
             client.Predict(new Input { Acceleration = 1 }); Assert.That(client.Current.Position, Is.EqualTo(28)); Assert.That(effects.Count, Is.EqualTo(6));
         }
+        [Test] public void RenderHitchDoesNotBackdateFreshInputIntoCatchupTicks()
+        {
+            Create(64); var held = new Input(); var fresh = new Input { Acceleration = 1 };
+            var plan = client.PlanFrame(21, 64);
+            for (uint tick = plan.FirstTick; tick <= plan.LastTick; tick++) client.Predict(tick == plan.SampleTick ? fresh : held);
+            Assert.That(client.Current.Position, Is.EqualTo(1), "Fresh input belongs to the current target, not twenty elapsed ticks.");
+            Assert.That(client.TryGetCommand(2, out var old), Is.True); Assert.That(old.Acceleration, Is.Zero);
+            Assert.That(client.TryGetCommand(21, out var current), Is.True); Assert.That(current.Acceleration, Is.EqualTo(1));
+            client.TryGetSendRange(1, 12, out uint first, out uint last);
+            Assert.That(first, Is.EqualTo(2)); Assert.That(last, Is.EqualTo(21));
+            var correction = client.Reconcile(1, 18, 18, new State { Position = 50 });
+            Assert.That(correction.Outcome, Is.EqualTo(PredictionCorrectionOutcome.Corrected));
+            Assert.That(client.Current.Position, Is.EqualTo(51)); Assert.That(effects.Count, Is.EqualTo(20));
+        }
+        [Test] public void BoundedCatchupRetainsPendingInputUntilTargetAndDoesNotAdvanceWhileAhead()
+        {
+            Create(64); var first = client.PlanFrame(21, 8);
+            Assert.That(first.SampleTick, Is.Zero); Assert.That(first.LastTick, Is.EqualTo(9));
+            for(uint tick=first.FirstTick;tick<=first.LastTick;tick++)client.Predict(new Input());
+            var second = client.PlanFrame(21, 8); Assert.That(second.SampleTick, Is.Zero);
+            for(uint tick=second.FirstTick;tick<=second.LastTick;tick++)client.Predict(new Input());
+            var final = client.PlanFrame(21, 8); Assert.That(final.SampleTick, Is.EqualTo(21));
+            Assert.That(client.PlanFrame(16, 8).IsEmpty, Is.True);
+            Assert.That(client.Tick, Is.EqualTo(17));
+            Assert.Throws<ArgumentOutOfRangeException>(()=>client.PlanFrame(21,0));
+        }
         [Test] public void SendRangeIncludesEveryNewCommandAfterLargeCatchupBatch()
         {
             Create(64); Steps(20);

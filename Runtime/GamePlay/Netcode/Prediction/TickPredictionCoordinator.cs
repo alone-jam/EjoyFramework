@@ -15,6 +15,14 @@ namespace EjoyFramework.GamePlay.Netcode.Prediction
         { Outcome = outcome; Reason = reason; ReplayedTicks = replayedTicks; }
     }
 
+    public readonly struct PredictionFramePlan
+    {
+        public readonly uint FirstTick, LastTick, SampleTick;
+        public bool IsEmpty => FirstTick == 0;
+        internal PredictionFramePlan(uint firstTick, uint lastTick, uint sampleTick)
+        { FirstTick = firstTick; LastTick = lastTick; SampleTick = sampleTick; }
+    }
+
     /// <summary>
     /// Fixed-tick prediction for one locally owned entity with one complete, unmanaged value-state
     /// component. Borrows World/entity/systems; owns loop, exact input history and state histories.
@@ -118,6 +126,22 @@ namespace EjoyFramework.GamePlay.Netcode.Prediction
             catch { faulted = true; throw; }
             finally { busy = false; }
         }
+        /// <summary>
+        /// Plans bounded catch-up without assigning a newly sampled render-frame input to elapsed
+        /// ticks. Keep the previous held input before SampleTick; consume the current input only
+        /// at SampleTick. Zero SampleTick means the target is not reached within this batch, so
+        /// the caller must retain (not consume) pending input. Does not advance state or time.
+        /// </summary>
+        public PredictionFramePlan PlanFrame(uint targetTick, int maxTicks)
+        {
+            Check(); Scope();
+            if (!started) throw new InvalidOperationException("Reset from authority first.");
+            if (maxTicks < 1 || maxTicks > 4096) throw new ArgumentOutOfRangeException(nameof(maxTicks));
+            if (targetTick <= clock.Tick) return default;
+            uint last = (uint)Math.Min((ulong)targetTick, (ulong)clock.Tick + (uint)maxTicks);
+            return new PredictionFramePlan(clock.Tick + 1, last, last == targetTick ? targetTick : 0);
+        }
+
         public bool TryGetCommand(uint tick, out TCommand command)
         { Check(); return inputs.TryGetAtSequence(unchecked((int)tick), out command); }
         /// <summary>All new commands plus a bounded redundant tail, clipped to retained/unacknowledged input.

@@ -2,8 +2,8 @@
 """Three real child processes and real UDP, with deterministic loopback-only impairment relays."""
 import argparse,heapq,ipaddress,json,os,selectors,socket,subprocess,time
 from pathlib import Path
-parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);parser.add_argument('--rounds',type=int,default=1,choices=[1,2]);parser.add_argument('--prediction-faults',action='store_true');parser.add_argument('--drop-disconnects',action='store_true');parser.add_argument('--authority-blackout',action='store_true');parser.add_argument('--timeout',type=float);parser.add_argument('--player-extra-args',nargs=argparse.REMAINDER,default=[]);a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
-sel=selectors.DefaultSelector();pending=[];serial=0;stats={'received':0,'dropped':0,'delayed':0,'duplicated':0,'bindings':[]};children=[];logs=[];relays=[]
+parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);parser.add_argument('--rounds',type=int,default=1,choices=[1,2]);parser.add_argument('--prediction-faults',action='store_true');parser.add_argument('--drop-disconnects',action='store_true');parser.add_argument('--authority-blackout',action='store_true');parser.add_argument('--timeout',type=float);parser.add_argument('--first-client-role',type=int,choices=[1,2]);parser.add_argument('--player-extra-args',nargs=argparse.REMAINDER,default=[]);a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+sel=selectors.DefaultSelector();pending=[];serial=0;stats={'received':0,'dropped':0,'delayed':0,'duplicated':0,'bindings':[]};children=[];logs=[];relays=[];first_client_ready=False
 def launch(name,*args):
  log=(a.output/(name+'.log')).open('w');logs.append(log)
  command=[a.dotnet,a.dll,*map(str,args)]
@@ -43,7 +43,7 @@ try:
   except (FileNotFoundError,json.JSONDecodeError):pass
   audit_sockets();time.sleep(.02)
  for role in [1,2]:
-  down,up=udp(),udp();relay={'down':down,'up':up,'client':None,'server':('127.0.0.1',port),'count':0,'handshakes':set(),'dataStarted':None};relays.append(relay)
+  down,up=udp(),udp();relay={'role':role,'down':down,'up':up,'client':None,'server':('127.0.0.1',port),'count':0,'handshakes':set(),'dataStarted':None};relays.append(relay)
   sel.register(down,selectors.EVENT_READ,(relay,False));sel.register(up,selectors.EVENT_READ,(relay,True))
   launch('client'+str(role),'authority-client' if a.authority else 'client',down.getsockname()[1],a.output/('client'+str(role)+'.json'),role,*([a.tick_rate] if a.authority else []))
  deadline=time.monotonic()+(a.timeout if a.timeout is not None else (55 if a.rounds==2 else 30))
@@ -64,6 +64,10 @@ try:
     if source!=relay['client']:continue
     target,dest=relay['up'],relay['server']
    stats['received']+=1;relay['count']+=1;n=relay['count'];kind=data[5] if len(data)>=40 else 0
+   if a.first_client_role and not first_client_ready:
+    if relay['role']==a.first_client_role and reverse and kind==4:first_client_ready=True
+    elif relay['role']!=a.first_client_role:
+     stats['startupGateDrops']=stats.get('startupGateDrops',0)+1;continue
    if a.drop_disconnects and kind==8:
     stats['dropped']+=1;stats['disconnectDrops']=stats.get('disconnectDrops',0)+1;continue
    if kind==5 and relay['dataStarted'] is None:relay['dataStarted']=time.monotonic()
@@ -86,8 +90,11 @@ try:
   p.wait()
  reports={name:json.loads((a.output/(name+'.json')).read_text()) for name in ['server','client1','client2'] if (a.output/(name+'.json')).exists()}
  passed=len(reports)==3 and all(v['passed'] for v in reports.values()) and len({v['pid'] for v in reports.values()})==3 and all(p.returncode==0 for p in children)
- stats.update(passed=passed,impaired=a.impaired,reports=reports,exitCodes=[p.returncode for p in children])
+ stats.update(passed=passed,impaired=a.impaired,firstClientRole=a.first_client_role,reports=reports,exitCodes=[p.returncode for p in children])
  (a.output/'result.json').write_text(json.dumps(stats,indent=2)+'\n');print(json.dumps(stats));raise SystemExit(0 if passed else 1)
+except Exception as error:
+ stats.update(passed=False,error=str(error),firstClientRole=a.first_client_role,exitCodes=[p.poll() for p in children])
+ (a.output/'result.json').write_text(json.dumps(stats,indent=2)+'\n');print(json.dumps(stats));raise
 finally:
  for p in children:
   if p.poll() is None:p.kill();p.wait()

@@ -32,13 +32,14 @@ namespace EjoyFramework.GamePlay.Combat
     {
         public readonly LinearProjectileState Projectile;
         public readonly HistoricalHit Hit;
-        public readonly uint QueryTick;
-        public ProjectileImpact(in LinearProjectileState projectile,in HistoricalHit hit,uint queryTick){Projectile=projectile;Hit=hit;QueryTick=queryTick;}
+        public readonly uint QueryTick, RequestedQueryTick;
+        public bool UsedLatestHistory => QueryTick != RequestedQueryTick;
+        public ProjectileImpact(in LinearProjectileState projectile,in HistoricalHit hit,uint queryTick,uint? requestedQueryTick=null){Projectile=projectile;Hit=hit;QueryTick=queryTick;RequestedQueryTick=requestedQueryTick??queryTick;}
     }
     public readonly struct ProjectileAdvanceResult
     {
-        public readonly int Impacts, Expired, MissingHistory, Fallbacks;
-        internal ProjectileAdvanceResult(int impacts,int expired,int missing,int fallbacks){Impacts=impacts;Expired=expired;MissingHistory=missing;Fallbacks=fallbacks;}
+        public readonly int Impacts, Expired, MissingHistory, Fallbacks, FutureFallbacks, PastFallbacks;
+        internal ProjectileAdvanceResult(int impacts,int expired,int missing,int fallbacks,int futureFallbacks,int pastFallbacks){Impacts=impacts;Expired=expired;MissingHistory=missing;Fallbacks=fallbacks;FutureFallbacks=futureFallbacks;PastFallbacks=pastFallbacks;}
     }
     /// <summary>Bounded owner-thread straight-flight simulation. Damage, teams, history fallback policy and tuning belong to the caller.
     /// Sweeps the whole movement segment, emits an impact once, retains it, then expires. No live physics mutation or callbacks.</summary>
@@ -64,7 +65,7 @@ namespace EjoyFramework.GamePlay.Combat
         public ProjectileAdvanceResult Advance(uint tick,HistoricalHitWorld history,bool fallbackToLatest,Span<ProjectileImpact> impacts)
         {
             Owner();if(m_Epoch==0||history==null||tick<=m_Tick||impacts.Length<m_Count)throw new ArgumentException("Monotonic tick, history and complete output budget required.");
-            int hits=0,expired=0,missing=0,fallbacks=0;
+            int hits=0,expired=0,missing=0,fallbacks=0,futureFallbacks=0,pastFallbacks=0;
             for(int i=0;i<m_Count;)
             {
                 var p=m_Items[i];
@@ -74,21 +75,22 @@ namespace EjoyFramework.GamePlay.Combat
                 {m_Items[i]=m_Items[--m_Count];expired++;continue;}
                 if(p.ImpactTick!=0){p.LastTick=tick;m_Items[i++]=p;continue;}
                 uint queryTick=tick>p.CollisionDelay?tick-p.CollisionDelay:0;
+                uint requestedQueryTick=queryTick;
                 var next=p.PositionAt(tick,m_Rate);var delta=next-p.Position;float distance=delta.Length();
                 var direction=Vector3.Normalize(p.End-p.Start);
                 var result=history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,p.Radius,p.Mask,p.Key.Owner,out var hit);
                 if(result==HistoricalQueryStatus.WrongEpoch)throw new InvalidOperationException("Projectile/history epoch mismatch.");
                 if(result==HistoricalQueryStatus.HistoryUnavailable&&fallbackToLatest)
-                {queryTick=history.LatestTick;result=history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,p.Radius,p.Mask,p.Key.Owner,out hit);fallbacks++;}
+                {if(queryTick>history.LatestTick)futureFallbacks++;else pastFallbacks++;queryTick=history.LatestTick;result=history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,p.Radius,p.Mask,p.Key.Owner,out hit);fallbacks++;}
                 if(result==HistoricalQueryStatus.HistoryUnavailable){missing++;if(overAge){m_Items[i]=m_Items[--m_Count];expired++;}else i++;continue;}
                 p.LastTick=tick;p.Position=next;
-                if(result==HistoricalQueryStatus.Hit){p.Position=hit.Point;p.ImpactNormal=hit.Normal;p.ImpactTick=tick;impacts[hits++]=new ProjectileImpact(in p,in hit,queryTick);}
+                if(result==HistoricalQueryStatus.Hit){p.Position=hit.Point;p.ImpactNormal=hit.Normal;p.ImpactTick=tick;impacts[hits++]=new ProjectileImpact(in p,in hit,queryTick,requestedQueryTick);}
                 // Resolve the final movement query before age-based despawn. An impact on
                 // that last update enters retained impact state instead of vanishing.
                 if(p.ImpactTick==0&&overAge){m_Items[i]=m_Items[--m_Count];expired++;continue;}
                 m_Items[i++]=p;
             }
-            m_Tick=tick;return new ProjectileAdvanceResult(hits,expired,missing,fallbacks);
+            m_Tick=tick;return new ProjectileAdvanceResult(hits,expired,missing,fallbacks,futureFallbacks,pastFallbacks);
         }
     }
 }

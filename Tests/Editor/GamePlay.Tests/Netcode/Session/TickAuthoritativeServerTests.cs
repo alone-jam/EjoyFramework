@@ -102,6 +102,19 @@ namespace EjoyFramework.GamePlay.Tests.Netcode.Session
             m_Transport.QueueConnected(2);
             m_Server.RunFrame(0);
         }
+        [Test] public void DisconnectPrecedesDifferentIdAdmissionInSamePollAtCapacity()
+        {
+            Connect();
+            var events = new System.Collections.Generic.List<int>();
+            m_Server.PeerClosed += handle => events.Add(-handle.ConnectionId);
+            m_Server.ConnectionObserved += handle => events.Add(handle.ConnectionId);
+            m_Transport.QueueDisconnected(1); m_Transport.QueueConnected(3);
+            m_Transport.QueueDisconnected(2); m_Transport.QueueConnected(4);
+            m_Server.RunFrame(0);
+            Assert.That(events, Is.EqualTo(new[] { -1, 3, -2, 4 }));
+            Assert.That(m_Server.ConnectedPeerCount, Is.EqualTo(2));
+            Assert.That(m_Server.AuthorizedPeerCount, Is.EqualTo(2));
+        }
         private TickPeerDiagnostics Peer(int slot)
         {
             Assert.That(m_Server.TryGetPeerDiagnostics(m_Handles[slot], out var value), Is.True);

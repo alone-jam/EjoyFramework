@@ -101,6 +101,12 @@ namespace EjoyFramework.Core.UI
             m_FormsByAssetName.Clear();
         }
 
+        public void ReleaseUnusedUIForms()
+        {
+            Framework.EnsureMainThread(nameof(ReleaseUnusedUIForms));
+            m_InstancePool?.ReleaseAllUnused();
+        }
+
         private void CancelAllLoadingRequests()
         {
             foreach (var kv in m_LoadingRequests) kv.Value.Cancelled = true;
@@ -135,7 +141,7 @@ namespace EjoyFramework.Core.UI
                         return m_InstancePool;
                     }
                 }
-                m_InstancePool = mgr.CreateMultiSpawnObjectPool<UIFormInstanceObject>(
+                m_InstancePool = mgr.CreateSingleSpawnObjectPool<UIFormInstanceObject>(
                     UIFormPoolName,
                     DefaultInstanceAutoReleaseInterval,
                     DefaultInstanceCapacity,

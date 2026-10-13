@@ -38,8 +38,18 @@ namespace EjoyFramework.GamePlay.Tests.Combat
         {
             var history=new HistoricalHitWorld(4,4);history.Reset(1);history.Capture(1,Array.Empty<HistoricalCollider>());
             var world=new LinearProjectileWorld(1);world.Reset(1);var p=Shot();world.Spawn(in p);var events=new ProjectileImpact[1];
-            var r=world.Advance(2,history,true,events);Assert.That(r.Fallbacks,Is.EqualTo(1));Assert.That(r.MissingHistory,Is.Zero);
+            var r=world.Advance(2,history,true,events);Assert.That(r.Fallbacks,Is.EqualTo(1));Assert.That(r.MissingHistory,Is.Zero);Assert.That(r.FutureFallbacks,Is.EqualTo(1));Assert.That(r.PastFallbacks,Is.Zero);
             Assert.That(world.Advance(62,history,false,events).Expired,Is.EqualTo(1));
+        }
+        [Test] public void ExpiredHistoryFallbackHitExposesBothRequestedAndUsedTicks()
+        {
+            var history=new HistoricalHitWorld(4,4);history.Reset(1);
+            history.Capture(10,new[]{HistoricalCollider.Sphere(2,1,0,2,new Vector3(5,0,0),.1f)});
+            var world=new LinearProjectileWorld(1);world.Reset(1);var p=Shot();p.CollisionDelay=8;world.Spawn(in p);var events=new ProjectileImpact[1];
+            var result=world.Advance(10,history,true,events);
+            Assert.That(result.Impacts,Is.EqualTo(1));Assert.That(result.PastFallbacks,Is.EqualTo(1));Assert.That(result.FutureFallbacks,Is.Zero);
+            Assert.That(events[0].RequestedQueryTick,Is.EqualTo(2));Assert.That(events[0].QueryTick,Is.EqualTo(10));Assert.That(events[0].UsedLatestHistory,Is.True);
+            Assert.That(world.Advance(11,history,true,events).Impacts,Is.Zero);
         }
         [Test] public void OverlapDeduplicatesOwnersAndForceIncludesSelfWithoutIncludingTeam()
         {

@@ -19,6 +19,8 @@ jobs:
         run: |
           dotnet test Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Codec.Tests.csproj --configuration Release
           dotnet test Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Session.Tests.csproj --configuration Release
+      - name: Test historical collision frames
+        run: dotnet test Tools~/Combat/EjoyFramework.Combat.Collision.Tests.csproj --configuration Release
       - name: Validate UDP with three independent processes
         run: |
           dotnet build Tools~/Netcode/EjoyFramework.Udp.ProcessProbe.csproj --configuration Release

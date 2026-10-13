@@ -2,13 +2,14 @@
 """Three real child processes and real UDP, with deterministic loopback-only impairment relays."""
 import argparse,heapq,ipaddress,json,os,selectors,socket,subprocess,time
 from pathlib import Path
-parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);parser.add_argument('--rounds',type=int,default=1,choices=[1,2]);parser.add_argument('--prediction-faults',action='store_true');a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);parser.add_argument('--rounds',type=int,default=1,choices=[1,2]);parser.add_argument('--prediction-faults',action='store_true');parser.add_argument('--timeout',type=float);parser.add_argument('--player-extra-args',nargs=argparse.REMAINDER,default=[]);a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 sel=selectors.DefaultSelector();pending=[];serial=0;stats={'received':0,'dropped':0,'delayed':0,'duplicated':0,'bindings':[]};children=[];logs=[];relays=[]
 def launch(name,*args):
  log=(a.output/(name+'.log')).open('w');logs.append(log)
  command=[a.dotnet,a.dll,*map(str,args)]
  if a.player:
   server=args[0].endswith('server');command=[a.player,'-batchmode','-nographics','--fps-mode','server' if server else 'client','--fps-port',str(args[1]),'--fps-report',str(args[2]),'--fps-role','0' if server else str(args[3]),'--fps-tick-rate',str(a.tick_rate),'--fps-rounds',str(a.rounds),'--fps-prediction-faults',str(a.prediction_faults).lower(),'-logFile',str(a.output/(name+'-unity.log'))]
+ if a.player:command.extend(a.player_extra_args)
  p=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT);children.append(p);return p
 def udp():
  s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('127.0.0.1',0));s.setblocking(False);stats['bindings'].append(s.getsockname());return s
@@ -45,7 +46,7 @@ try:
   down,up=udp(),udp();relay={'down':down,'up':up,'client':None,'server':('127.0.0.1',port),'count':0,'handshakes':set(),'dataStarted':None};relays.append(relay)
   sel.register(down,selectors.EVENT_READ,(relay,False));sel.register(up,selectors.EVENT_READ,(relay,True))
   launch('client'+str(role),'authority-client' if a.authority else 'client',down.getsockname()[1],a.output/('client'+str(role)+'.json'),role,*([a.tick_rate] if a.authority else []))
- deadline=time.monotonic()+(55 if a.rounds==2 else 30)
+ deadline=time.monotonic()+(a.timeout if a.timeout is not None else (55 if a.rounds==2 else 30))
  while any(p.poll() is None for p in children) and time.monotonic()<deadline:
   now=time.monotonic()
   audit_sockets()

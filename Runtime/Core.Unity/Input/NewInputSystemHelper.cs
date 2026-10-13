@@ -79,6 +79,16 @@ namespace EjoyFramework.Core.Unity
             if (string.Equals(axisName, "Mouse ScrollWheel", StringComparison.OrdinalIgnoreCase))
                 return Mouse.current != null ? Mouse.current.scroll.y.ReadValue() : 0f;
 
+            var gamepad = Gamepad.current;
+            if (gamepad != null)
+            {
+                if (string.Equals(axisName, "GamepadLeftStickX", StringComparison.OrdinalIgnoreCase)) return gamepad.leftStick.x.ReadValue();
+                if (string.Equals(axisName, "GamepadLeftStickY", StringComparison.OrdinalIgnoreCase)) return gamepad.leftStick.y.ReadValue();
+                if (string.Equals(axisName, "GamepadRightStickX", StringComparison.OrdinalIgnoreCase)) return gamepad.rightStick.x.ReadValue();
+                if (string.Equals(axisName, "GamepadRightStickY", StringComparison.OrdinalIgnoreCase)) return gamepad.rightStick.y.ReadValue();
+                if (string.Equals(axisName, "GamepadLeftTrigger", StringComparison.OrdinalIgnoreCase)) return gamepad.leftTrigger.ReadValue();
+                if (string.Equals(axisName, "GamepadRightTrigger", StringComparison.OrdinalIgnoreCase)) return gamepad.rightTrigger.ReadValue();
+            }
             return 0f;
         }
 
@@ -140,6 +150,9 @@ namespace EjoyFramework.Core.Unity
                     case '5': case '6': return null;
                 }
             }
+            // Device-independent physical names, resolved afresh so reconnects cannot retain stale controls.
+            if (keyName.StartsWith("Gamepad", StringComparison.OrdinalIgnoreCase))
+                return ResolveGamepadButton(keyName);
             var kb = Keyboard.current;
             if (kb == null) return null;
 
@@ -150,6 +163,29 @@ namespace EjoyFramework.Core.Unity
             }
             if (!cached.HasValue) return null;
             return kb[cached.Value];
+        }
+
+        private static ButtonControl ResolveGamepadButton(string name)
+        {
+            var pad = Gamepad.current;
+            if (pad == null) return null;
+            if (string.Equals(name, "GamepadSouth", StringComparison.OrdinalIgnoreCase)) return pad.buttonSouth;
+            if (string.Equals(name, "GamepadNorth", StringComparison.OrdinalIgnoreCase)) return pad.buttonNorth;
+            if (string.Equals(name, "GamepadWest", StringComparison.OrdinalIgnoreCase)) return pad.buttonWest;
+            if (string.Equals(name, "GamepadEast", StringComparison.OrdinalIgnoreCase)) return pad.buttonEast;
+            if (string.Equals(name, "GamepadLeftShoulder", StringComparison.OrdinalIgnoreCase)) return pad.leftShoulder;
+            if (string.Equals(name, "GamepadRightShoulder", StringComparison.OrdinalIgnoreCase)) return pad.rightShoulder;
+            if (string.Equals(name, "GamepadLeftTrigger", StringComparison.OrdinalIgnoreCase)) return pad.leftTrigger;
+            if (string.Equals(name, "GamepadRightTrigger", StringComparison.OrdinalIgnoreCase)) return pad.rightTrigger;
+            if (string.Equals(name, "GamepadLeftStickPress", StringComparison.OrdinalIgnoreCase)) return pad.leftStickButton;
+            if (string.Equals(name, "GamepadRightStickPress", StringComparison.OrdinalIgnoreCase)) return pad.rightStickButton;
+            if (string.Equals(name, "GamepadStart", StringComparison.OrdinalIgnoreCase)) return pad.startButton;
+            if (string.Equals(name, "GamepadSelect", StringComparison.OrdinalIgnoreCase)) return pad.selectButton;
+            if (string.Equals(name, "GamepadDpadUp", StringComparison.OrdinalIgnoreCase)) return pad.dpad.up;
+            if (string.Equals(name, "GamepadDpadDown", StringComparison.OrdinalIgnoreCase)) return pad.dpad.down;
+            if (string.Equals(name, "GamepadDpadLeft", StringComparison.OrdinalIgnoreCase)) return pad.dpad.left;
+            if (string.Equals(name, "GamepadDpadRight", StringComparison.OrdinalIgnoreCase)) return pad.dpad.right;
+            return null;
         }
 
         /// <summary>

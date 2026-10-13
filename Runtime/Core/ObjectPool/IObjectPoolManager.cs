@@ -23,10 +23,16 @@ namespace EjoyFramework.Core.ObjectPool
         /// </summary>
         bool HasObjectPool<T>() where T : ObjectBase;
 
+        /// <summary>Checks for the pool identified by its object type and name.</summary>
+        bool HasObjectPool<T>(string name) where T : ObjectBase;
+
         /// <summary>
         /// 获取对象池。
         /// </summary>
         IObjectPool<T> GetObjectPool<T>() where T : ObjectBase;
+
+        /// <summary>Access the pool identified by its object type and name.</summary>
+        IObjectPool<T> GetObjectPool<T>(string name) where T : ObjectBase;
 
         /// <summary>
         /// 创建允许单次获取的对象池。
@@ -42,6 +48,9 @@ namespace EjoyFramework.Core.ObjectPool
         /// 销毁对象池。
         /// </summary>
         bool DestroyObjectPool<T>() where T : ObjectBase;
+
+        /// <summary>Destroys the pool identified by its object type and name.</summary>
+        bool DestroyObjectPool<T>(string name) where T : ObjectBase;
 
         /// <summary>
         /// 释放对象池中的可释放对象。

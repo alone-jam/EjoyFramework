@@ -93,7 +93,12 @@ namespace EjoyFramework.Core.ObjectPool
 
         public bool HasObjectPool<T>() where T : ObjectBase
         {
-            return m_ObjectPools.ContainsKey(new TypeNamePair(typeof(T)));
+            return HasObjectPool<T>(string.Empty);
+        }
+
+        public bool HasObjectPool<T>(string name) where T : ObjectBase
+        {
+            return m_ObjectPools.ContainsKey(new TypeNamePair(typeof(T), name));
         }
 
         public ObjectPoolBase[] GetAllObjectPools()
@@ -120,8 +125,13 @@ namespace EjoyFramework.Core.ObjectPool
 
         public IObjectPool<T> GetObjectPool<T>() where T : ObjectBase
         {
+            return GetObjectPool<T>(string.Empty);
+        }
+
+        public IObjectPool<T> GetObjectPool<T>(string name) where T : ObjectBase
+        {
             ObjectPoolBase objectPool = null;
-            if (m_ObjectPools.TryGetValue(new TypeNamePair(typeof(T)), out objectPool))
+            if (m_ObjectPools.TryGetValue(new TypeNamePair(typeof(T), name), out objectPool))
             {
                 return (IObjectPool<T>)objectPool;
             }
@@ -141,7 +151,12 @@ namespace EjoyFramework.Core.ObjectPool
 
         public bool DestroyObjectPool<T>() where T : ObjectBase
         {
-            return InternalDestroyObjectPool(new TypeNamePair(typeof(T)));
+            return DestroyObjectPool<T>(string.Empty);
+        }
+
+        public bool DestroyObjectPool<T>(string name) where T : ObjectBase
+        {
+            return InternalDestroyObjectPool(new TypeNamePair(typeof(T), name));
         }
 
         public void Release()

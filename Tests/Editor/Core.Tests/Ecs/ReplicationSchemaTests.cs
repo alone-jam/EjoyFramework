@@ -7,11 +7,12 @@ namespace EjoyFramework.Tests.Ecs
 {
     public class ReplicationSchemaTests
     {
-        private struct State { public int Value; }
-        private struct Missing { public int Value; }
+        private struct State { public int Value; public State(int value) { Value = value; } }
+        private struct Missing { public int Value; public Missing(int value) { Value = value; } }
         private struct PredictedState : IPredicted<PredictedState>
         {
             public int Value;
+            public PredictedState(int value) { Value = value; }
             public bool VerifyPrediction(in PredictedState predicted) => Value == predicted.Value;
         }
         private struct InterpolatedState : IInterpolated<InterpolatedState>

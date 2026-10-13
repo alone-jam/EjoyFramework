@@ -18,5 +18,7 @@
     <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Session/TickAuthorityLoopbackTests.cs" />
     <Compile Include="../../Samples~/EcsDemo/TickAuthorityScenario.cs" />
     <Compile Include="TickAuthorityScenarioTests.cs" />
+    <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Session/TickSessionWelcomeTests.cs" />
+    <Compile Include="../../Tests/Editor/GamePlay.Tests/Netcode/Transport/UdpNetTransportTests.cs" />
   </ItemGroup>
 </Project>

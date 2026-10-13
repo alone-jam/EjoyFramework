@@ -32,6 +32,7 @@ obj/
 !Tools~/Netcode/EjoyFramework.Core.SessionSupport.csproj
 !Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Session.Runtime.csproj
 !Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Session.Tests.csproj
+!Tools~/Netcode/EjoyFramework.Udp.ProcessProbe.csproj
 
 # Local editor state, downloaded archives and credentials are not package inputs.
 /FPSSample-master~/

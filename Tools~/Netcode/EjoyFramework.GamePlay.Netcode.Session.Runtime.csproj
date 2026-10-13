@@ -17,6 +17,7 @@
     <Compile Include="../../Runtime/GamePlay/Netcode/Session/TickInputFrameError.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Session/TickInputFrameCodec.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Session/ITickCommandCodec.cs" />
+    <Compile Include="../../Runtime/GamePlay/Netcode/Session/TickSessionWelcome.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Session/TickCommandInbox.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Session/TickCommandAdmissionResult.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Session/TickCommandSelection.cs" />
@@ -33,5 +34,6 @@
     <Compile Include="../../Runtime/GamePlay/Netcode/Transport/INetTransport.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Transport/IBudgetedNetTransport.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Transport/LoopbackTransport.cs" />
+    <Compile Include="../../Runtime/GamePlay/Netcode/Transport/UdpNetTransport*.cs" />
   </ItemGroup>
 </Project>

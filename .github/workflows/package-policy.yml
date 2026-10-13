@@ -15,3 +15,13 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Test self-authored ECS
         run: dotnet test Tools~/Ecs/EjoyFramework.Core.Ecs.Tests.csproj --configuration Release
+      - name: Test bounded tick codecs and sessions
+        run: |
+          dotnet test Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Codec.Tests.csproj --configuration Release
+          dotnet test Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Session.Tests.csproj --configuration Release
+      - name: Validate UDP with three independent processes
+        run: |
+          dotnet build Tools~/Netcode/EjoyFramework.Udp.ProcessProbe.csproj --configuration Release
+          python3 Tools~/Netcode/run_udp_process_probe.py --dotnet dotnet --dll Tools~/Netcode/bin/EjoyFramework.Udp.ProcessProbe/Release/net8.0/EjoyFramework.Udp.ProcessProbe.dll --output /tmp/udp-transport --impaired
+          python3 Tools~/Netcode/run_udp_process_probe.py --dotnet dotnet --dll Tools~/Netcode/bin/EjoyFramework.Udp.ProcessProbe/Release/net8.0/EjoyFramework.Udp.ProcessProbe.dll --output /tmp/udp-authority60 --authority --tick-rate 60 --impaired
+          python3 Tools~/Netcode/run_udp_process_probe.py --dotnet dotnet --dll Tools~/Netcode/bin/EjoyFramework.Udp.ProcessProbe/Release/net8.0/EjoyFramework.Udp.ProcessProbe.dll --output /tmp/udp-authority30 --authority --tick-rate 30 --impaired

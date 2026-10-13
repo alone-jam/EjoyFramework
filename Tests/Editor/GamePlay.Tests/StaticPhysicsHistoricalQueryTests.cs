@@ -12,12 +12,12 @@ namespace EjoyFramework.GamePlay.Tests
         [SetUp] public void Setup()
         {
             wall=GameObject.CreatePrimitive(PrimitiveType.Cube);var mesh=wall.GetComponent<MeshFilter>().sharedMesh;UnityEngine.Object.DestroyImmediate(wall.GetComponent<BoxCollider>());
-            collider=wall.AddComponent<MeshCollider>();collider.sharedMesh=mesh;wall.layer=29;wall.isStatic=true;wall.transform.position=new Vector3(0,0,5);Physics.SyncTransforms();
+            collider=wall.AddComponent<MeshCollider>();collider.sharedMesh=mesh;wall.layer=29;wall.isStatic=false;wall.transform.position=new Vector3(0,0,5);Physics.SyncTransforms();
             history=new HistoricalHitWorld(4,4);history.Reset(1);history.Capture(1,new[]{HistoricalCollider.Sphere(8,2,0,2,new V(0,0,10),.5f)});
             query=new StaticPhysicsHistoricalQuery(history,Physics.defaultPhysicsScene,new Collider[]{collider},1<<29,7,0x80000000);
         }
         [TearDown] public void Cleanup()=>UnityEngine.Object.DestroyImmediate(wall);
-        [Test] public void StaticMeshOccludesHistoricalActorAndPreservesHistoryAdmission()
+        [Test] public void ExplicitUnbakedStaticMeshOccludesHistoricalActorAndPreservesHistoryAdmission()
         {
             Assert.That(query.Sweep(1,1,V.Zero,V.UnitZ,20,.1f,uint.MaxValue,0,out var hit),Is.EqualTo(HistoricalQueryStatus.Hit));
             Assert.That(hit.Collider.Owner,Is.EqualTo(7));Assert.That(hit.Collider.Shape,Is.EqualTo(HistoricalShape.ExternalStatic));Assert.That(hit.Distance,Is.EqualTo(4.4f).Within(.001f));

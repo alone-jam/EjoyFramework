@@ -26,12 +26,13 @@ namespace EjoyFramework.GamePlay.Unity.Combat
         {
             this.history=history??throw new ArgumentNullException(nameof(history));
             if(!scene.IsValid()||staticGeometry==null||staticGeometry.Length==0||staticGeometry.Length>4096||layerMask==0||owner==0||categoryMask==0)throw new ArgumentException("Bounded static geometry and explicit layer/identity required.");
+            // Registration and pose checks establish runtime immutability. GameObject.isStatic is a bake/editor flag, not a player contract.
             this.scene=scene;this.owner=owner;mask=categoryMask;layers=layerMask;
             geometry=(Collider[])staticGeometry.Clone();overlaps=new Collider[geometry.Length+1];poses=new Matrix4x4[geometry.Length];ids=new Dictionary<int,ushort>(geometry.Length);
             for(int i=0;i<geometry.Length;i++)
             {
                 var c=geometry[i];
-                if(!c||!c.enabled||!c.gameObject.activeInHierarchy||c.isTrigger||!c.gameObject.isStatic||(layers&(1<<c.gameObject.layer))==0||c.gameObject.scene.GetPhysicsScene()!=scene)throw new ArgumentException("Geometry must be enabled, non-trigger, static and in the specified scene/layer.");
+                if(!c||!c.enabled||!c.gameObject.activeInHierarchy||c.isTrigger||(layers&(1<<c.gameObject.layer))==0||c.gameObject.scene.GetPhysicsScene()!=scene)throw new ArgumentException("Geometry must be enabled, non-trigger and in the specified scene/layer.");
                 ids.Add(c.GetInstanceID(),(ushort)i);poses[i]=c.transform.localToWorldMatrix;
             }
         }

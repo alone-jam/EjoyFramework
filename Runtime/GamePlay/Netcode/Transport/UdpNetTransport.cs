@@ -120,6 +120,14 @@ namespace EjoyFramework.GamePlay.Netcode.Transport
             }
             else Transmit(peer, new Pending { Sequence = ++peer.SendLoose, Data = copy }, method);
         }
+        /// <summary>Best-effort admission when a peer may close during Poll before its deferred disconnect callback.
+        /// Returns false only for an unavailable peer; payload errors and reliable backpressure still throw.</summary>
+        public bool TrySend(int connectionId,ArraySegment<byte> data,NetDeliveryMethod method=NetDeliveryMethod.ReliableOrdered)
+        {
+            Owner();Peer peer=m_Client;if(IsServer)m_Peers.TryGetValue(connectionId,out peer);
+            if(peer==null||!peer.Connected)return false;
+            Send(connectionId,data,method);return true;
+        }
         public void Broadcast(ArraySegment<byte> data, NetDeliveryMethod method = NetDeliveryMethod.ReliableOrdered)
         {
             Owner(); if (!IsServer) throw new InvalidOperationException("Server role required.");

@@ -133,6 +133,15 @@ namespace EjoyFramework.GamePlay.Tests.Netcode
             while (closed == 0 && time.Elapsed.TotalSeconds < 3) { server.Poll(); Thread.Sleep(5); }
             Assert.That(closed, Is.EqualTo(1));
         }
+        [Test] public void TrySendHandlesCloseBeforeDeferredDisconnectNotification()
+        {
+            int closed=0;server.OnClientDisconnected+=id=>closed++;
+            client.Disconnect();server.Poll();
+            Assert.That(closed,Is.Zero);
+            Assert.That(server.TrySend(peer,default),Is.False);
+            server.Poll();Assert.That(closed,Is.EqualTo(1));
+            Assert.That(client.TrySend(0,default),Is.False);
+        }
         [Test] public void SendLimitsAndUnknownDeliveryFailBeforeQueueing()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() => client.Send(0, new ArraySegment<byte>(new byte[65537])));

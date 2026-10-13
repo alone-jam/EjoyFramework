@@ -20,10 +20,12 @@ namespace EjoyFramework.GamePlay.Unity.ThreeC
 
         private CharacterController m_Controller;
         private ThirdPersonMotor m_Motor;
+        private CharacterControllerStepper m_Stepper;
 
         private void Awake()
         {
             m_Controller = GetComponent<CharacterController>();
+            m_Stepper = new CharacterControllerStepper(m_Controller);
             if (m_Input == null) m_Input = GetComponent<ThirdPersonInputSource>();
             if (m_CameraTransform == null && Camera.main != null) m_CameraTransform = Camera.main.transform;
             m_Motor = new ThirdPersonMotor(
@@ -40,7 +42,7 @@ namespace EjoyFramework.GamePlay.Unity.ThreeC
                 float cameraYaw = m_CameraTransform != null ? m_CameraTransform.eulerAngles.y : transform.eulerAngles.y;
                 CharacterMotorStep step = m_Motor.Step(in control, in feedback, cameraYaw, Time.deltaTime);
                 var displacement = new Vector3(step.Displacement.X, step.Displacement.Y, step.Displacement.Z);
-                m_Controller.Move(displacement);
+                if (Time.deltaTime > 0f) m_Stepper.Move(transform.position, displacement, Time.deltaTime);
                 if (step.Velocity.HorizontalSqrMagnitude > 0.0001f)
                 {
                     Quaternion target = Quaternion.Euler(0f, step.FacingYaw, 0f);
@@ -51,9 +53,8 @@ namespace EjoyFramework.GamePlay.Unity.ThreeC
 
         public void Teleport(Vector3 position, Quaternion rotation)
         {
-            m_Controller.enabled = false;
-            transform.SetPositionAndRotation(position, rotation);
-            m_Controller.enabled = true;
+            m_Stepper.RestorePosition(position);
+            transform.rotation = rotation;
             m_Motor.Reset();
         }
     }

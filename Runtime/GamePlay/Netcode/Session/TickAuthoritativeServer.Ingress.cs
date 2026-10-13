@@ -40,14 +40,11 @@ namespace EjoyFramework.GamePlay.Netcode.Session
             try
             {
                 if (connectionId < 0) throw new InvalidOperationException("Transport supplied a negative connection ID.");
+                // Retire earlier disconnects before admitting any replacement ID. Otherwise
+                // observers see ghost peers and a full server can reject a valid reconnect.
+                ApplyPendingRevocations();
+                ThrowLatched();
                 int existing = FindConnected(connectionId);
-                if (existing >= 0 && m_Peers[existing].PendingRevoke)
-                {
-                    // A delivered disconnect followed by ID reuse in the same poll may retire first.
-                    ApplyPendingRevocations();
-                    ThrowLatched();
-                    existing = FindConnected(connectionId);
-                }
                 if (existing >= 0) throw new InvalidOperationException("Transport reused an active connection ID.");
                 int index = -1;
                 for (int i = 0; i < m_Peers.Length; i++)

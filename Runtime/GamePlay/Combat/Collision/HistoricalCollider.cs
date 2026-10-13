@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 namespace EjoyFramework.GamePlay.Combat
 {
-    public enum HistoricalShape : byte { Sphere = 1, Capsule = 2, Box = 3 }
+    public enum HistoricalShape : byte { Sphere = 1, Capsule = 2, Box = 3, ExternalStatic = 4 }
     /// <summary>World-space value collider with owner/lifetime/subshape identity and caller-defined category mask/tag.</summary>
     public readonly struct HistoricalCollider
     {
@@ -28,6 +28,8 @@ namespace EjoyFramework.GamePlay.Combat
             float length = rotation.LengthSquared(); if (!Finite(length) || length < .000001f) throw new ArgumentOutOfRangeException(nameof(rotation));
             return new HistoricalCollider(owner, generation, shapeId, mask, tag, HistoricalShape.Box, center, halfExtents, Quaternion.Normalize(rotation), 0);
         }
+        internal static HistoricalCollider StaticIdentity(ulong owner,uint generation,ushort shapeId,uint mask,int tag)
+        { Identity(owner,generation); return new HistoricalCollider(owner,generation,shapeId,mask,tag,HistoricalShape.ExternalStatic,default,default,Quaternion.Identity,0); }
         internal bool Valid => Owner != 0 && Generation != 0 && Shape >= HistoricalShape.Sphere && Shape <= HistoricalShape.Box;
         internal static void Vector(Vector3 v) { if (!Finite(v.X) || !Finite(v.Y) || !Finite(v.Z) || Math.Abs(v.X) > 1000000 || Math.Abs(v.Y) > 1000000 || Math.Abs(v.Z) > 1000000) throw new ArgumentOutOfRangeException(nameof(v)); }
         internal static bool Finite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
@@ -41,6 +43,15 @@ namespace EjoyFramework.GamePlay.Combat
         public float Distance { get; }
         public Vector3 Point { get; }
         public Vector3 Normal { get; }
+        /// <summary>External immutable static geometry hit; this identity is not a capturable primitive frame.</summary>
+        public static HistoricalHit StaticGeometry(ulong owner,uint generation,ushort shapeId,uint mask,int tag,float distance,Vector3 point,Vector3 normal)
+        {
+            if(!HistoricalCollider.Finite(distance)||distance<0||distance>1000000)throw new ArgumentOutOfRangeException(nameof(distance));
+            HistoricalCollider.Vector(point);HistoricalCollider.Vector(normal);
+            if(normal.LengthSquared()<.000001f)throw new ArgumentOutOfRangeException(nameof(normal));
+            var identity=HistoricalCollider.StaticIdentity(owner,generation,shapeId,mask,tag);
+            return new HistoricalHit(in identity,distance,point,Vector3.Normalize(normal));
+        }
         internal HistoricalHit(in HistoricalCollider collider, float distance, Vector3 point, Vector3 normal)
         { Collider = collider; Distance = distance; Point = point; Normal = normal; }
     }

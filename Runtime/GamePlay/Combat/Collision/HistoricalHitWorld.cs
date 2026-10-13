@@ -5,7 +5,7 @@ namespace EjoyFramework.GamePlay.Combat
     /// <summary>Bounded complete collider frames. No live physics mutation, implicit tick clamp, IO or per-query allocation.
     /// Owner thread only; each capture is a complete coherent world. Gameplay owns tick fallback, teams and damage.
     /// Generation prevents a historical hit on a retired lifetime from becoming damage to a respawned owner.</summary>
-    public sealed class HistoricalHitWorld
+    public sealed class HistoricalHitWorld : IHistoricalSweepQuery
     {
         private readonly int ownerThread = Environment.CurrentManagedThreadId;
         private readonly HistoricalCollider[] shapes;

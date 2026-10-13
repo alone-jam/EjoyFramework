@@ -62,7 +62,7 @@ namespace EjoyFramework.GamePlay.Combat
             if(m_Count==m_Items.Length)throw new InvalidOperationException("Projectile capacity exhausted.");var assigned=state;assigned.Id=checked(++m_NextId);m_Items[m_Count++]=assigned;return true;
         }
         public int CopyTo(Span<LinearProjectileState> destination){Owner();if(destination.Length<m_Count)throw new ArgumentException("Output too small.");m_Items.AsSpan(0,m_Count).CopyTo(destination);return m_Count;}
-        public ProjectileAdvanceResult Advance(uint tick,HistoricalHitWorld history,bool fallbackToLatest,Span<ProjectileImpact> impacts)
+        public ProjectileAdvanceResult Advance(uint tick,IHistoricalSweepQuery history,bool fallbackToLatest,Span<ProjectileImpact> impacts)
         {
             Owner();if(m_Epoch==0||history==null||tick<=m_Tick||impacts.Length<m_Count)throw new ArgumentException("Monotonic tick, history and complete output budget required.");
             int hits=0,expired=0,missing=0,fallbacks=0,futureFallbacks=0,pastFallbacks=0;

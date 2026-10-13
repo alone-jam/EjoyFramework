@@ -92,6 +92,9 @@ try:
  passed=len(reports)==3 and all(v['passed'] for v in reports.values()) and len({v['pid'] for v in reports.values()})==3 and all(p.returncode==0 for p in children)
  stats.update(passed=passed,impaired=a.impaired,firstClientRole=a.first_client_role,reports=reports,exitCodes=[p.returncode for p in children])
  (a.output/'result.json').write_text(json.dumps(stats,indent=2)+'\n');print(json.dumps(stats));raise SystemExit(0 if passed else 1)
+except Exception as error:
+ stats.update(passed=False,error=str(error),firstClientRole=a.first_client_role,exitCodes=[p.poll() for p in children])
+ (a.output/'result.json').write_text(json.dumps(stats,indent=2)+'\n');print(json.dumps(stats));raise
 finally:
  for p in children:
   if p.poll() is None:p.kill();p.wait()

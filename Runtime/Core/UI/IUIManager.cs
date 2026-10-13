@@ -118,6 +118,9 @@ namespace EjoyFramework.Core.UI
         /// 设置界面辅助器。
         /// </summary>
         void SetUIFormHelper(IUIFormHelper uiFormHelper);
+
+        /// <summary>Release idle pooled forms and their asset references. Active forms are retained.</summary>
+        void ReleaseUnusedUIForms();
     }
 
     /// <summary>

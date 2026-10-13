@@ -76,10 +76,18 @@ namespace EjoyFramework.Core.Scene
             if (m_LoadingScenes.ContainsKey(sceneAssetName)) throw new FrameworkException(Utility.Text.Format("Scene '{0}' is loading.", sceneAssetName));
 
             m_LoadingScenes.Add(sceneAssetName, new LoadingInfo { UserData = userData, StartTime = NowSeconds() });
-            m_Helper.LoadAsync(sceneAssetName, priority, userData,
-                progress => RaiseUpdate(sceneAssetName, progress, userData),
-                ok => OnLoaded(sceneAssetName, userData),
-                (asset, err) => OnLoadFailed(asset, err, userData));
+            try
+            {
+                m_Helper.LoadAsync(sceneAssetName, priority, userData,
+                    progress => RaiseUpdate(sceneAssetName, progress, userData),
+                    ok => OnLoaded(sceneAssetName, userData),
+                    (asset, err) => OnLoadFailed(sceneAssetName, err, userData));
+            }
+            catch (Exception ex)
+            {
+                if (m_LoadingScenes.ContainsKey(sceneAssetName)) OnLoadFailed(sceneAssetName, ex.Message, userData);
+                else throw;
+            }
         }
 
         public void UnloadScene(string sceneAssetName, object userData)
@@ -89,10 +97,19 @@ namespace EjoyFramework.Core.Scene
             if (m_Helper == null) throw new FrameworkException("Scene helper is not set.");
             if (!m_LoadedScenes.Contains(sceneAssetName)) throw new FrameworkException(Utility.Text.Format("Scene '{0}' not loaded.", sceneAssetName));
 
-            m_UnloadingScenes[sceneAssetName] = userData;
-            m_Helper.UnloadAsync(sceneAssetName, userData,
-                ok => OnUnloaded(sceneAssetName, userData),
-                (asset, err) => OnUnloadFailed(asset, err, userData));
+            if (m_UnloadingScenes.ContainsKey(sceneAssetName)) throw new FrameworkException("Scene is already unloading.");
+            m_UnloadingScenes.Add(sceneAssetName, userData);
+            try
+            {
+                m_Helper.UnloadAsync(sceneAssetName, userData,
+                    ok => OnUnloaded(sceneAssetName, userData),
+                    (asset, err) => OnUnloadFailed(sceneAssetName, err, userData));
+            }
+            catch (Exception ex)
+            {
+                if (m_UnloadingScenes.ContainsKey(sceneAssetName)) OnUnloadFailed(sceneAssetName, ex.Message, userData);
+                else throw;
+            }
         }
 
         public override void Update(float a, float b) { }
@@ -169,7 +186,7 @@ namespace EjoyFramework.Core.Scene
             var h = UnloadSceneFailure;
             if (h != null)
             {
-                var args = UnloadSceneFailureEventArgs.Create(asset, userData);
+                var args = UnloadSceneFailureEventArgs.Create(asset, userData, err);
                 try { h(this, args); }
                 catch (Exception ex) { FrameworkLog.Error("UnloadSceneFailure handler threw: {0}", ex); }
                 ReferencePool.Release(args);

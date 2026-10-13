@@ -47,6 +47,10 @@ namespace EjoyFramework.Core.Input
         bool GetButtonDown(string actionName);
         bool GetButtonUp(string actionName);
 
+        /// <summary>Current primary pointer in screen pixels; suppressed outside Game context.
+        /// Returns false for helpers without pointer support. Coordinates are zero on failure.</summary>
+        bool TryGetPointerPosition(out float x, out float y);
+
         // 通用指针
 
         bool IsTouchSupported { get; }
@@ -60,6 +64,12 @@ namespace EjoyFramework.Core.Input
         bool GetKeyDown(string keyName);
         bool GetKeyUp(string keyName);
         float GetAxisRaw(string axisName);
+    }
+
+    /// <summary>Optional pointer backend capability; existing keyboard-only helpers remain valid.</summary>
+    public interface IPointerInputHelper
+    {
+        bool TryGetPointerPosition(out float x, out float y);
     }
 
     /// <summary>输入上下文：Game / UI / Menu 互斥栈式。</summary>

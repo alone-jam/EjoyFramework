@@ -9,6 +9,21 @@ namespace EjoyFramework.Tests
 {
     public sealed class NewInputSystemHelperTests : InputTestFixture
     {
+        [Test] public void PointerPositionFlowsThroughManagerAndHonorsContext()
+        {
+            var manager = new EjoyFramework.Core.Input.InputManager();
+            EjoyFramework.Core.Framework.MarkMainThread();
+            manager.SetHelper(new NewInputSystemHelper());
+            Assert.That(manager.TryGetPointerPosition(out _,out _),Is.False);
+            var mouse=InputSystem.AddDevice<Mouse>();Set(mouse.position,new UnityEngine.Vector2(123,456));
+            Assert.That(manager.TryGetPointerPosition(out var x,out var y),Is.True);
+            Assert.That(x,Is.EqualTo(123));Assert.That(y,Is.EqualTo(456));
+            manager.PushContext(EjoyFramework.Core.Input.InputContext.Menu);
+            Assert.That(manager.TryGetPointerPosition(out x,out y),Is.False);Assert.That(x+y,Is.Zero);
+            manager.PopContext();Assert.That(manager.TryGetPointerPosition(out _,out _),Is.True);
+            InputSystem.RemoveDevice(mouse);Assert.That(manager.TryGetPointerPosition(out _,out _),Is.False);
+            manager.Shutdown();
+        }
         [TestCase(0, MouseButton.Left)]
         [TestCase(1, MouseButton.Right)]
         [TestCase(2, MouseButton.Middle)]

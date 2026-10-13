@@ -167,8 +167,8 @@ namespace EjoyFramework.Core.Unity.Editor.Resource
                 return false;
             }
 
-            if (mainAssetType.Namespace != null &&
-                mainAssetType.Namespace.StartsWith("UnityEditor", StringComparison.Ordinal))
+            // SceneAsset is an editor representation of a runtime-loadable scene.
+            if (IsEditorOnlyAssetType(mainAssetType))
             {
                 reason = "editor-only asset type";
                 return false;
@@ -183,6 +183,12 @@ namespace EjoyFramework.Core.Unity.Editor.Resource
 
             reason = null;
             return true;
+        }
+
+        private static bool IsEditorOnlyAssetType(Type type)
+        {
+            return type != typeof(SceneAsset) && type.Namespace != null &&
+                type.Namespace.StartsWith("UnityEditor", StringComparison.Ordinal);
         }
 
         private static void CountSkip(Dictionary<string, int> skipped, string reason)

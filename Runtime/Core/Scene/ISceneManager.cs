@@ -191,18 +191,21 @@ namespace EjoyFramework.Core.Scene
     {
         public string SceneAssetName { get; private set; }
         public object UserData { get; private set; }
+        public string ErrorMessage { get; private set; }
 
         public override void Clear()
         {
             SceneAssetName = null;
+            ErrorMessage = null;
             UserData = null;
         }
 
-        public static UnloadSceneFailureEventArgs Create(string sceneAssetName, object userData)
+        public static UnloadSceneFailureEventArgs Create(string sceneAssetName, object userData, string errorMessage = null)
         {
             UnloadSceneFailureEventArgs e = ReferencePool.Acquire<UnloadSceneFailureEventArgs>();
             e.SceneAssetName = sceneAssetName;
             e.UserData = userData;
+            e.ErrorMessage = errorMessage;
             return e;
         }
     }

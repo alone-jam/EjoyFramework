@@ -102,6 +102,16 @@ namespace EjoyFramework.Tests
             return null;
         }
 
+        [Test] public void ConcurrentSameAssetDoesNotBorrowActiveInstance()
+        {
+            int first=m_UI.OpenUIForm("UI/Same","Default",0,false,null);
+            int second=m_UI.OpenUIForm("UI/Same","Default",0,false,null);
+            Assert.That(m_FormHelper.InstantiateCount,Is.EqualTo(2));
+            m_UI.CloseUIForm(first);m_UI.ReleaseUnusedUIForms();
+            Assert.That(m_FormHelper.ReleaseCount,Is.EqualTo(1));Assert.That(m_UI.HasUIForm(second),Is.True);
+            m_UI.CloseUIForm(second);m_UI.ReleaseUnusedUIForms();
+            Assert.That(m_FormHelper.ReleaseCount,Is.EqualTo(2));Assert.That(GetInstancePool().Count,Is.Zero);
+        }
         // ===== Tests =====
 
         [Test]

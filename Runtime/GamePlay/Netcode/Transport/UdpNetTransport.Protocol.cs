@@ -57,13 +57,22 @@ namespace EjoyFramework.GamePlay.Netcode.Transport
                 (kind != Kind.Data && (length != HeaderBytes || total != 0 || size != 0 || fragment != 0 || count != 0 || method != NetDeliveryMethod.ReliableOrdered || (kind != Kind.Ack && sequence != 0))))
             { RejectedDatagrams++; return; }
             Peer peer = null;
-            foreach (var candidate in m_Peers.Values) if (candidate.Endpoint.Equals(endpoint)) { peer = candidate; break; }
+            Peer endpointPeer = null;
+            foreach (var candidate in m_Peers.Values)
+            {
+                if (!candidate.Endpoint.Equals(endpoint)) continue;
+                if (candidate.Nonce == nonce) peer = candidate;
+                if (!candidate.Connected || endpointPeer == null) endpointPeer = candidate;
+            }
             if (kind == Kind.Hello && IsServer && token == 0)
             {
-                if (peer != null && peer.Nonce != nonce) return;
                 if (peer == null)
                 {
-                    if (m_Peers.Count >= m_MaxPeers || m_Events.Count + m_Peers.Count >= 256) return;
+                    // One unconfirmed replacement per endpoint. An unauthenticated Hello must
+                    // neither evict a live peer nor refresh its timeout.
+                    if (endpointPeer != null && !endpointPeer.Connected) return;
+                    if ((endpointPeer == null && m_Peers.Count >= m_MaxPeers) ||
+                        m_Peers.Count >= m_MaxPeers * 2 || m_Events.Count + m_Peers.Count >= 256) return;
                     peer = new Peer { Id = NextId(), Endpoint = endpoint, Nonce = nonce, Token = RandomId(), Seen = Now };
                     m_Peers.Add(peer.Id, peer);
                 }
@@ -73,7 +82,18 @@ namespace EjoyFramework.GamePlay.Netcode.Transport
             if (kind == Kind.Challenge && IsClient && !peer.Connected && token != 0 && (peer.Token == 0 || peer.Token == token))
             { peer.Token = token; peer.Seen = Now; Control(peer, Kind.Confirm); return; }
             if (token == 0 || peer.Token != token) { RejectedDatagrams++; return; }
-            if (kind == Kind.Confirm && IsServer) { peer.Seen = Now; Connected(peer); Control(peer, Kind.Ready); return; }
+            if (kind == Kind.Confirm && IsServer)
+            {
+                if (!peer.Connected)
+                {
+                    // Only a round trip with this candidate's fresh token can replace
+                    // the previous session. Queue its disconnect before the new connect.
+                    SnapshotPeers();
+                    foreach (var previous in m_Scratch)
+                        if (previous != peer && previous.Endpoint.Equals(endpoint)) Drop(previous, true);
+                }
+                peer.Seen = Now; Connected(peer); Control(peer, Kind.Ready); return;
+            }
             if (kind == Kind.Ready && IsClient) { peer.Seen = Now; Connected(peer); return; }
             if (kind == Kind.Bye) { Drop(peer, false); return; }
             if (!peer.Connected) return;

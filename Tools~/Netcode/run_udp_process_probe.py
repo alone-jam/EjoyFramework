@@ -2,13 +2,13 @@
 """Three real child processes and real UDP, with deterministic loopback-only impairment relays."""
 import argparse,heapq,ipaddress,json,os,selectors,socket,subprocess,time
 from pathlib import Path
-parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);parser.add_argument('--rounds',type=int,default=1,choices=[1,2]);a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 sel=selectors.DefaultSelector();pending=[];serial=0;stats={'received':0,'dropped':0,'delayed':0,'duplicated':0,'bindings':[]};children=[];logs=[];relays=[]
 def launch(name,*args):
  log=(a.output/(name+'.log')).open('w');logs.append(log)
  command=[a.dotnet,a.dll,*map(str,args)]
  if a.player:
-  server=args[0].endswith('server');command=[a.player,'-batchmode','-nographics','--fps-mode','server' if server else 'client','--fps-port',str(args[1]),'--fps-report',str(args[2]),'--fps-role','0' if server else str(args[3]),'--fps-tick-rate',str(a.tick_rate),'-logFile',str(a.output/(name+'-unity.log'))]
+  server=args[0].endswith('server');command=[a.player,'-batchmode','-nographics','--fps-mode','server' if server else 'client','--fps-port',str(args[1]),'--fps-report',str(args[2]),'--fps-role','0' if server else str(args[3]),'--fps-tick-rate',str(a.tick_rate),'--fps-rounds',str(a.rounds),'-logFile',str(a.output/(name+'-unity.log'))]
  p=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT);children.append(p);return p
 def udp():
  s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('127.0.0.1',0));s.setblocking(False);stats['bindings'].append(s.getsockname());return s
@@ -35,15 +35,17 @@ def audit_sockets():
   if not ipaddress.ip_address(record['address']).is_loopback:raise RuntimeError('New non-loopback binding observed: '+str(record))
 try:
  report=a.output/'server.json';server=launch('server','authority-server' if a.authority else 'server',0,report,*([a.tick_rate] if a.authority else []));deadline=time.monotonic()+10
- while not Path(str(report)+'.ready').exists():
+ while True:
   if server.poll() is not None or time.monotonic()>deadline:raise RuntimeError('Server did not become ready')
+  try:
+   port=json.loads(Path(str(report)+'.ready').read_text())['port'];break
+  except (FileNotFoundError,json.JSONDecodeError):pass
   audit_sockets();time.sleep(.02)
- port=json.loads(Path(str(report)+'.ready').read_text())['port']
  for role in [1,2]:
   down,up=udp(),udp();relay={'down':down,'up':up,'client':None,'server':('127.0.0.1',port),'count':0,'handshakes':set()};relays.append(relay)
   sel.register(down,selectors.EVENT_READ,(relay,False));sel.register(up,selectors.EVENT_READ,(relay,True))
   launch('client'+str(role),'authority-client' if a.authority else 'client',down.getsockname()[1],a.output/('client'+str(role)+'.json'),role,*([a.tick_rate] if a.authority else []))
- deadline=time.monotonic()+30
+ deadline=time.monotonic()+(55 if a.rounds==2 else 30)
  while any(p.poll() is None for p in children) and time.monotonic()<deadline:
   now=time.monotonic()
   audit_sockets()
@@ -57,7 +59,7 @@ try:
     if source!=relay['server'] or relay['client'] is None:continue
     target,dest=relay['down'],relay['client']
    else:
-    if relay['client'] is None:relay['client']=source
+    if relay['client'] is None or (a.rounds==2 and len(data)>=40 and data[5]==1 and ipaddress.ip_address(source[0]).is_loopback):relay['client']=source
     if source!=relay['client']:continue
     target,dest=relay['up'],relay['server']
    stats['received']+=1;relay['count']+=1;n=relay['count'];kind=data[5] if len(data)>=40 else 0

@@ -37,5 +37,6 @@
     <Compile Include="../../Runtime/GamePlay/Netcode/Transport/IBudgetedNetTransport.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Transport/LoopbackTransport.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Transport/UdpNetTransport*.cs" />
+      <Compile Include="../../Runtime/GamePlay/Netcode/Prediction/PredictedEventLedger.cs" />
   </ItemGroup>
 </Project>

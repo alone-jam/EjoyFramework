@@ -69,8 +69,8 @@ namespace EjoyFramework.GamePlay.Combat
             {
                 var p=m_Items[i];
                 if(tick<p.Key.StartTick){i++;continue;}
-                if((p.ImpactTick>0&&(tick-p.ImpactTick)/(double)m_Rate>p.ImpactRetentionSeconds)||
-                    (p.ImpactTick==0&&(tick-p.Key.StartTick)/(double)m_Rate>p.MaxAgeSeconds))
+                bool overAge=(tick-p.Key.StartTick)/(float)m_Rate>p.MaxAgeSeconds;
+                if(p.ImpactTick>0&&(tick-p.ImpactTick)/(float)m_Rate>p.ImpactRetentionSeconds)
                 {m_Items[i]=m_Items[--m_Count];expired++;continue;}
                 if(p.ImpactTick!=0){p.LastTick=tick;m_Items[i++]=p;continue;}
                 uint queryTick=tick>p.CollisionDelay?tick-p.CollisionDelay:0;
@@ -80,9 +80,12 @@ namespace EjoyFramework.GamePlay.Combat
                 if(result==HistoricalQueryStatus.WrongEpoch)throw new InvalidOperationException("Projectile/history epoch mismatch.");
                 if(result==HistoricalQueryStatus.HistoryUnavailable&&fallbackToLatest)
                 {queryTick=history.LatestTick;result=history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,p.Radius,p.Mask,p.Key.Owner,out hit);fallbacks++;}
-                if(result==HistoricalQueryStatus.HistoryUnavailable){missing++;i++;continue;}
+                if(result==HistoricalQueryStatus.HistoryUnavailable){missing++;if(overAge){m_Items[i]=m_Items[--m_Count];expired++;}else i++;continue;}
                 p.LastTick=tick;p.Position=next;
                 if(result==HistoricalQueryStatus.Hit){p.Position=hit.Point;p.ImpactNormal=hit.Normal;p.ImpactTick=tick;impacts[hits++]=new ProjectileImpact(in p,in hit,queryTick);}
+                // Resolve the final movement query before age-based despawn. An impact on
+                // that last update enters retained impact state instead of vanishing.
+                if(p.ImpactTick==0&&overAge){m_Items[i]=m_Items[--m_Count];expired++;continue;}
                 m_Items[i++]=p;
             }
             m_Tick=tick;return new ProjectileAdvanceResult(hits,expired,missing,fallbacks);

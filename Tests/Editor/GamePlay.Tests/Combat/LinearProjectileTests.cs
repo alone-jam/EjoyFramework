@@ -21,6 +21,12 @@ namespace EjoyFramework.GamePlay.Tests.Combat
             Assert.That(world.Advance(62,history,false,events).Expired,Is.Zero);
             Assert.That(world.Advance(63,history,false,events).Expired,Is.EqualTo(1));Assert.That(world.Count,Is.Zero);
         }
+        [Test] public void LastMovementQueryPrecedesAgeDespawn()
+        {
+            var history=new HistoricalHitWorld(4,4);history.Reset(1);history.Capture(2,new[]{HistoricalCollider.Sphere(2,1,0,2,new Vector3(5,0,0),.1f)});
+            var world=new LinearProjectileWorld(4);world.Reset(1);var p=Shot();p.MaxAgeSeconds=.01f;world.Spawn(in p);var events=new ProjectileImpact[4];
+            var result=world.Advance(2,history,false,events);Assert.That(result.Impacts,Is.EqualTo(1));Assert.That(result.Expired,Is.Zero);Assert.That(world.Count,Is.EqualTo(1));
+        }
         [Test] public void MissingHistoryIsExplicitAndDoesNotSkipUnsweptDistance()
         {
             var history=new HistoricalHitWorld(4,4);history.Reset(1);var world=new LinearProjectileWorld(4);world.Reset(1);var p=Shot();world.Spawn(in p);var events=new ProjectileImpact[4];

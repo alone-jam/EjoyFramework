@@ -2,7 +2,7 @@
 
 EjoyArena's Terraformer GooRocket loop required three reusable mechanisms, implemented in the existing platform-independent Combat assembly:
 
-- `LinearProjectileWorld`: bounded owner-thread straight-flight state, stable spawn identity, complete previous-to-current segment sweeps, explicit missing-history/latest fallback policy, one impact transition, retained impact state and flight/impact expiration. Damage, team mask and authored tuning are caller policy. It has no Unity physics, callbacks or damage rules.
+- `LinearProjectileWorld`: bounded owner-thread straight-flight state, stable spawn identity, complete previous-to-current segment sweeps, explicit missing-history/latest fallback policy, one impact transition, retained impact state and flight/impact expiration. The last movement query resolves before age-based removal, so a boundary impact enters retained state. Damage, team mask and authored tuning are caller policy. It has no Unity physics, callbacks or damage rules.
 - `HistoricalHitWorld.OverlapSphere`: exact sphere/capsule/rotated-box overlaps at an explicit frame, deterministic unique-owner results with lifetime identity, mask/exclusion and force-inclusion. No implicit temporal fallback; output must cover the configured collider capacity. No occlusion/line-of-sight policy is invented.
 - `ProjectileReplicaSet`: bounded complete-frame prediction confirmation/correction, strict session and monotonic frame boundaries, once-only impact notification, rejection of absent past predictions, generation retirement and timeout/reset cleanup. Matching type/owner/generation/start tick plus trajectory tolerance confirms the existing view. Changed geometry corrects it. The caller owns visual assets, playback and frame codecs.
 

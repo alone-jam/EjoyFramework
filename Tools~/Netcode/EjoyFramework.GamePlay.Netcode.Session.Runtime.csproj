@@ -10,6 +10,8 @@
     <ProjectReference Include="EjoyFramework.Core.SessionSupport.csproj" />
     <ProjectReference Include="../Ecs/EjoyFramework.Core.Ecs.csproj" />
     <Compile Include="../../Runtime/GamePlay/Netcode/AssemblyInfo.cs" />
+    <Compile Include="../../Runtime/GamePlay/Netcode/Prediction/TickPredictionCoordinator.cs" />
+    <Compile Include="../../Runtime/GamePlay/Netcode/Prediction/PredictionPresentationOffset.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Messages/NetBitReader.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Messages/NetBitWriter.cs" />
     <Compile Include="../../Runtime/GamePlay/Netcode/Session/TickInputFrameHeader.cs" />

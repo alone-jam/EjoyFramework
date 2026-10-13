@@ -2,13 +2,13 @@
 """Three real child processes and real UDP, with deterministic loopback-only impairment relays."""
 import argparse,heapq,ipaddress,json,os,selectors,socket,subprocess,time
 from pathlib import Path
-parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);parser.add_argument('--rounds',type=int,default=1,choices=[1,2]);a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);parser.add_argument('--rounds',type=int,default=1,choices=[1,2]);parser.add_argument('--prediction-faults',action='store_true');a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 sel=selectors.DefaultSelector();pending=[];serial=0;stats={'received':0,'dropped':0,'delayed':0,'duplicated':0,'bindings':[]};children=[];logs=[];relays=[]
 def launch(name,*args):
  log=(a.output/(name+'.log')).open('w');logs.append(log)
  command=[a.dotnet,a.dll,*map(str,args)]
  if a.player:
-  server=args[0].endswith('server');command=[a.player,'-batchmode','-nographics','--fps-mode','server' if server else 'client','--fps-port',str(args[1]),'--fps-report',str(args[2]),'--fps-role','0' if server else str(args[3]),'--fps-tick-rate',str(a.tick_rate),'--fps-rounds',str(a.rounds),'-logFile',str(a.output/(name+'-unity.log'))]
+  server=args[0].endswith('server');command=[a.player,'-batchmode','-nographics','--fps-mode','server' if server else 'client','--fps-port',str(args[1]),'--fps-report',str(args[2]),'--fps-role','0' if server else str(args[3]),'--fps-tick-rate',str(a.tick_rate),'--fps-rounds',str(a.rounds),'--fps-prediction-faults',str(a.prediction_faults).lower(),'-logFile',str(a.output/(name+'-unity.log'))]
  p=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT);children.append(p);return p
 def udp():
  s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('127.0.0.1',0));s.setblocking(False);stats['bindings'].append(s.getsockname());return s
@@ -42,7 +42,7 @@ try:
   except (FileNotFoundError,json.JSONDecodeError):pass
   audit_sockets();time.sleep(.02)
  for role in [1,2]:
-  down,up=udp(),udp();relay={'down':down,'up':up,'client':None,'server':('127.0.0.1',port),'count':0,'handshakes':set()};relays.append(relay)
+  down,up=udp(),udp();relay={'down':down,'up':up,'client':None,'server':('127.0.0.1',port),'count':0,'handshakes':set(),'dataStarted':None};relays.append(relay)
   sel.register(down,selectors.EVENT_READ,(relay,False));sel.register(up,selectors.EVENT_READ,(relay,True))
   launch('client'+str(role),'authority-client' if a.authority else 'client',down.getsockname()[1],a.output/('client'+str(role)+'.json'),role,*([a.tick_rate] if a.authority else []))
  deadline=time.monotonic()+(55 if a.rounds==2 else 30)
@@ -63,10 +63,16 @@ try:
     if source!=relay['client']:continue
     target,dest=relay['up'],relay['server']
    stats['received']+=1;relay['count']+=1;n=relay['count'];kind=data[5] if len(data)>=40 else 0
+   if kind==5 and relay['dataStarted'] is None:relay['dataStarted']=time.monotonic()
+   age=0 if relay['dataStarted'] is None else time.monotonic()-relay['dataStarted']
+   if a.prediction_faults and kind==5 and not reverse and 1.5<=age<2.4:
+    stats['dropped']+=1;stats['inputBlackoutDrops']=stats.get('inputBlackoutDrops',0)+1;continue
    handshake=(reverse,kind)
    if a.impaired and (n%7==0 or (kind in (1,2) and handshake not in relay['handshakes'])):
     relay['handshakes'].add(handshake);stats['dropped']+=1;continue
    delay=(.012+(n%5)*.009) if a.impaired else 0
+   if a.prediction_faults and kind==5 and reverse and 2.6<=age<4.4:
+    delay+=1.7;stats['historyDelayPackets']=stats.get('historyDelayPackets',0)+1
    serial+=1;heapq.heappush(pending,(time.monotonic()+delay,serial,target,dest,data));stats['delayed']+=int(delay>0)
    if a.impaired and kind==5 and n%13==0:
     serial+=1;heapq.heappush(pending,(time.monotonic()+delay+.006,serial,target,dest,data));stats['duplicated']+=1

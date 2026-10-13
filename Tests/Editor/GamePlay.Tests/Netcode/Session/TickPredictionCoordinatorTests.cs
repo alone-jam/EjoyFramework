@@ -50,6 +50,21 @@ namespace EjoyFramework.GamePlay.Tests
             Assert.That(client.TryGetCommand(3, out _), Is.False); Assert.That(client.TryGetCommand(4, out _), Is.True);
             client.Predict(new Input { Acceleration = 1 }); Assert.That(client.Current.Position, Is.EqualTo(28)); Assert.That(effects.Count, Is.EqualTo(6));
         }
+        [Test] public void SendRangeIncludesEveryNewCommandAfterLargeCatchupBatch()
+        {
+            Create(64); Steps(20);
+            Assert.That(client.TryGetSendRange(1, 12, out uint first, out uint last), Is.True);
+            Assert.That(first, Is.EqualTo(2)); Assert.That(last, Is.EqualTo(21));
+            Steps(20); client.TryGetSendRange(21, 12, out first, out last);
+            Assert.That(first, Is.EqualTo(10)); Assert.That(last, Is.EqualTo(41));
+        }
+        [Test] public void SendRangeExcludesAcknowledgedOrEvictedInputs()
+        {
+            Create(4); Steps(9); client.TryGetSendRange(1, 12, out uint first, out uint last);
+            Assert.That(first, Is.EqualTo(7)); Assert.That(last, Is.EqualTo(10));
+            client.TryGetPrediction(10, out var state); client.Reconcile(1, 10, 10, state);
+            Assert.That(client.TryGetSendRange(10, 12, out _, out _), Is.False);
+        }
         [Test] public void ComponentToleranceMatchesWithoutChangingState()
         {
             Steps(5); var result = client.Reconcile(1, 3, 2, new State { Position = 4, Velocity = 2 });

@@ -5,6 +5,7 @@
 Contract:
 
 - Admit a complete, nonzero-tick authoritative state with explicit `Reset(epoch,tick,state)`. Reconnect must preserve the new epoch; queued old messages remain old. Reset clears all old inputs/history and clock fraction. Session authentication and complete frame/schema validation precede this API.
+- `TryGetSendRange(lastSentTick,redundancyTicks,...)` includes every new command plus the retained, unacknowledged redundant tail. A catch-up batch cannot skip its earliest new commands by selecting only relative to the new prediction head.
 - `Predict(command)` records one input and runs exactly one fixed tick. A command is immutable once recorded. Game fields should already be in their wire-quantized form. An independent render cadence cannot change the tick delta.
 - `Reconcile(epoch,tick,ack,state)` validates epoch, monotonic snapshot and resolved-input acknowledgement. A transport receipt is not a simulated input acknowledgement. Old/duplicate frames leave state/ack unchanged; wrong epoch cannot cross into a new history.
 - Before correction, require the exact historical state, every exact input in `(tick,currentTick]`, and a bounded replay range. A gap/eviction/ahead-authority returns ResyncRequired without changing World, clock, histories or ack. There is no nearby-state fallback or substitution of current input for lost input.

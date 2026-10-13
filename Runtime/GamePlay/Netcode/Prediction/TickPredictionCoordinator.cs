@@ -120,6 +120,20 @@ namespace EjoyFramework.GamePlay.Netcode.Prediction
         }
         public bool TryGetCommand(uint tick, out TCommand command)
         { Check(); return inputs.TryGetAtSequence(unchecked((int)tick), out command); }
+        /// <summary>All new commands plus a bounded redundant tail, clipped to retained/unacknowledged input.
+        /// A catch-up batch must not skip its early new commands merely because the current head advanced.</summary>
+        public bool TryGetSendRange(uint lastSentTick, int redundancyTicks, out uint first, out uint last)
+        {
+            Check(); Scope(); first = last = 0;
+            if (!started || lastSentTick > clock.Tick || redundancyTicks < 0 || redundancyTicks > 4096)
+                throw new ArgumentOutOfRangeException();
+            if (inputs.IsEmpty) return false;
+            ulong candidate = (ulong)lastSentTick + 1 - Math.Min((ulong)lastSentTick, (ulong)redundancyTicks);
+            candidate = Math.Max(candidate, (ulong)lastAcknowledgedTick + 1);
+            candidate = Math.Max(candidate, unchecked((uint)inputs.HeadSequence));
+            if (candidate > clock.Tick) return false;
+            first = (uint)candidate; last = clock.Tick; return true;
+        }
         public bool TryGetPrediction(uint tick, out TState state)
         { Check(); if (!started) { state = default; return false; } return predictions.TryGet(in predictionBinding, tick, out state); }
 

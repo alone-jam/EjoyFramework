@@ -18,12 +18,20 @@ namespace EjoyFramework.Core.Unity
     /// 性能：Enum.TryParse&lt;KeyCode&gt; 为反射 + 装箱，逐帧查询代价高。这里在首次遇到某个 keyName 时
     /// 解析一次并缓存到 m_KeyCache，热路径只做字典查找；无法解析的名字也缓存为 null 避免重复反射。
     /// </summary>
-    public sealed class LegacyInputHelper : IInputHelper
+    public sealed class LegacyInputHelper : IInputHelper, IPointerInputHelper
     {
         // keyName -> KeyCode（解析失败缓存为 null，避免逐帧重复反射）。
         private readonly Dictionary<string, KeyCode?> m_KeyCache = new Dictionary<string, KeyCode?>(StringComparer.OrdinalIgnoreCase);
 
         public bool IsTouchSupported => UnityInput.touchSupported;
+
+        public bool TryGetPointerPosition(out float x, out float y)
+        {
+            x = y = 0;
+            if (!UnityInput.mousePresent) return false;
+            var position = UnityInput.mousePosition;
+            x = position.x; y = position.y; return true;
+        }
 
         public bool GetKey(string keyName)
         {

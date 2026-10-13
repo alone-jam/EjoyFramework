@@ -82,6 +82,14 @@ namespace EjoyFramework.Core.Input
             if (m_ContextStack.Count > 1) m_ContextStack.Pop();
         }
 
+        public bool TryGetPointerPosition(out float x, out float y)
+        {
+            x = y = 0;
+            if (CurrentContext != InputContext.Game || !(m_Helper is IPointerInputHelper pointer)) return false;
+            if (pointer.TryGetPointerPosition(out x, out y)) return true;
+            x = y = 0; return false;
+        }
+
         // ===== 查询 =====
         // 只在 InputContext.Game 下生效；其他 context 屏蔽业务输入
 

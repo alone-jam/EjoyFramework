@@ -24,13 +24,22 @@ namespace EjoyFramework.Core.Unity
     /// 并缓存（解析失败缓存为 null），热路径只做字典查找；按帧查询直接读 Keyboard.current 的
     /// <see cref="KeyControl"/>，无反射 / 无装箱。
     /// </summary>
-    public sealed class NewInputSystemHelper : IInputHelper
+    public sealed class NewInputSystemHelper : IInputHelper, IPointerInputHelper
     {
         // keyName -> Key（解析失败缓存为 null，避免逐帧重复解析）。
         private readonly Dictionary<string, Key?> m_KeyCache =
             new Dictionary<string, Key?>(StringComparer.OrdinalIgnoreCase);
 
         public bool IsTouchSupported => Touchscreen.current != null;
+
+        public bool TryGetPointerPosition(out float x, out float y)
+        {
+            x = y = 0;
+            var pointer = Pointer.current;
+            if (pointer == null) return false;
+            var position = pointer.position.ReadValue();
+            x = position.x; y = position.y; return true;
+        }
 
         public bool GetKey(string keyName)
         {

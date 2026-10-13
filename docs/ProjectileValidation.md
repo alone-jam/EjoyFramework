@@ -1,0 +1,19 @@
+# Linear projectile consumption contract
+
+EjoyArena's Terraformer GooRocket loop required three reusable mechanisms, implemented in the existing platform-independent Combat assembly:
+
+- `LinearProjectileWorld`: bounded owner-thread straight-flight state, stable spawn identity, complete previous-to-current segment sweeps, explicit missing-history/latest fallback policy, one impact transition, retained impact state and flight/impact expiration. Damage, team mask and authored tuning are caller policy. It has no Unity physics, callbacks or damage rules.
+- `HistoricalHitWorld.OverlapSphere`: exact sphere/capsule/rotated-box overlaps at an explicit frame, deterministic unique-owner results with lifetime identity, mask/exclusion and force-inclusion. No implicit temporal fallback; output must cover the configured collider capacity. No occlusion/line-of-sight policy is invented.
+- `ProjectileReplicaSet`: bounded complete-frame prediction confirmation/correction, strict session and monotonic frame boundaries, once-only impact notification, rejection of absent past predictions, generation retirement and timeout/reset cleanup. Matching type/owner/generation/start tick plus trajectory tolerance confirms the existing view. Changed geometry corrects it. The caller owns visual assets, playback and frame codecs.
+
+Replica inputs must be **complete** projectile frames. New authority objects must be included from their spawn frame onward while retained; a later frame cannot introduce a launch already omitted in an applied earlier frame. Impact retention is not a durable event stream: a long network outage can miss an expired explosion. Timeout hides a view but retains bounded identity until the next complete frame/reset so a late impact state does not replay an already displayed explosion. Capacity exhaustion is explicit, never silent truncation. Caller must validate the network session before passing the frame; tokens are not authentication.
+
+The game preserves the reference's current-character-center splash falloff after historical shape selection. Full animated hitboxes, map, original first-person weapon and projectile art/audio remain consumer limitations. The framework does not copy game damage numbers, ability arbitration, score rules or proxy visuals.
+
+Tests cover high-speed thin-target tunneling, moving historical targets, no repeat impact, strict impact expiry, unavailable history and explicit fallback, owner deduplication/team/self masks, confirmation/correction, duplicate/reordered frames, timeout, old session and respawn generation, transactional malformed frames and warm zero managed allocation for flight/overlap. The process probe's `--authority-blackout` drops server data for four seconds (age 2.5..6.5) to force visible prediction timeout and later reconciliation; `--drop-disconnects` forces lost-Bye reconnect coverage.
+
+## Relationship to preceding weapon work
+
+PR #11 introduced `PredictedEventLedger`, a bounded event reconciliation primitive: speculative starts, complete authoritative event windows, confirmation, authoritative-only events, rejection, history expiry and scope reset/close. It did not introduce projectile trajectories, persistent replicated object views, historical overlap, audio pooling or ability rules. Existing tick prediction suppresses replay effects; EjoyArena added deterministic complete rifle state and routes cues through the ledger and framework sound helper.
+
+PR #12 separately fixed UDP candidate reconnect after a lost Bye and tick-session disconnect-before-replacement admission ordering. It added no weapon/flight logic. This iteration consumes both changes; it does not substitute for their event-ledger or reconnect regressions. Each consumer evidence stage retains the failures it discovered.

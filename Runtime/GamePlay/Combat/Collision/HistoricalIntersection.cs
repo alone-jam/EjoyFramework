@@ -4,6 +4,18 @@ namespace EjoyFramework.GamePlay.Combat
 {
     internal static class HistoricalIntersection
     {
+        public static bool Overlap(in HistoricalCollider c,Vector3 center,float radius)
+        {
+            if(c.Shape==HistoricalShape.Box)
+            {
+                var local=Vector3.Transform(center-c.A,Quaternion.Conjugate(c.Rotation));
+                return Vector3.DistanceSquared(local,Vector3.Clamp(local,-c.B,c.B))<=radius*radius;
+            }
+            var closest=c.A;
+            if(c.Shape==HistoricalShape.Capsule)
+            {var axis=c.B-c.A;float length=axis.LengthSquared();if(length>1e-12f)closest+=axis*Math.Max(0,Math.Min(1,Vector3.Dot(center-c.A,axis)/length));}
+            float sum=c.Radius+radius;return Vector3.DistanceSquared(center,closest)<=sum*sum;
+        }
         public static bool Sweep(in HistoricalCollider c, Vector3 o, Vector3 d, float radius, out float t, out Vector3 normal)
         {
             if (c.Shape == HistoricalShape.Sphere) return Capsule(o, d, c.A, c.A, c.Radius + radius, out t, out normal);

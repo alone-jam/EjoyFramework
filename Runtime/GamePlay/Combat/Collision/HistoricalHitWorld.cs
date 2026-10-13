@@ -58,6 +58,26 @@ namespace EjoyFramework.GamePlay.Combat
             }
             return found ? HistoricalQueryStatus.Hit : HistoricalQueryStatus.Miss;
         }
+        /// <summary>Complete unique-owner sphere overlap, sorted by owner. Force-inclusion bypasses only the mask.
+        /// Output budget must cover the collider capacity; no partial result is returned.</summary>
+        public HistoricalQueryStatus OverlapSphere(ulong worldEpoch,uint tick,Vector3 center,float radius,uint mask,
+            ulong excludedOwner,ulong includedOwner,Span<HistoricalCollider> output,out int count)
+        {
+            Owner();count=0;HistoricalCollider.Vector(center);
+            if(!HistoricalCollider.Finite(radius)||radius<0||radius>1000000||output.Length<capacity)throw new ArgumentException("Valid radius and complete output budget required.");
+            if(epoch==0||worldEpoch!=epoch)return HistoricalQueryStatus.WrongEpoch;
+            int slot=(int)(tick%(uint)ticks.Length);
+            if(tick==0||tick>LatestTick||LatestTick-tick>=ticks.Length||ticks[slot]!=tick)return HistoricalQueryStatus.HistoryUnavailable;
+            for(int i=0;i<counts[slot];i++)
+            {
+                var c=shapes[slot*capacity+i];
+                if(c.Owner==excludedOwner||(c.Owner!=includedOwner&&(c.Mask&mask)==0)||!HistoricalIntersection.Overlap(in c,center,radius))continue;
+                int at=0;while(at<count&&output[at].Owner<c.Owner)at++;
+                if(at<count&&output[at].Owner==c.Owner){if(c.ShapeId<output[at].ShapeId)output[at]=c;continue;}
+                for(int j=count;j>at;j--)output[j]=output[j-1];output[at]=c;count++;
+            }
+            return count==0?HistoricalQueryStatus.Miss:HistoricalQueryStatus.Hit;
+        }
         private void Owner() { if (Environment.CurrentManagedThreadId != ownerThread) throw new InvalidOperationException("Use history on its constructing thread."); }
     }
 }

@@ -1,4 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><LangVersion>9.0</LangVersion><EnableDefaultCompileItems>false</EnableDefaultCompileItems><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
-  <ItemGroup><Compile Include="../../Runtime/GamePlay/Combat/Collision/*.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../../Runtime/GamePlay/Combat/Collision/*.cs" /><Compile Include="../../Runtime/GamePlay/Combat/Projectiles/*.cs" /></ItemGroup>
 </Project>

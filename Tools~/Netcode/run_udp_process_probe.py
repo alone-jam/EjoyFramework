@@ -2,7 +2,7 @@
 """Three real child processes and real UDP, with deterministic loopback-only impairment relays."""
 import argparse,heapq,ipaddress,json,os,selectors,socket,subprocess,time
 from pathlib import Path
-parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);parser.add_argument('--rounds',type=int,default=1,choices=[1,2]);parser.add_argument('--prediction-faults',action='store_true');parser.add_argument('--drop-disconnects',action='store_true');parser.add_argument('--timeout',type=float);parser.add_argument('--player-extra-args',nargs=argparse.REMAINDER,default=[]);a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+parser=argparse.ArgumentParser();parser.add_argument('--dotnet');parser.add_argument('--dll');parser.add_argument('--player');parser.add_argument('--output',required=True,type=Path);parser.add_argument('--impaired',action='store_true');parser.add_argument('--authority',action='store_true');parser.add_argument('--tick-rate',type=int,default=60);parser.add_argument('--rounds',type=int,default=1,choices=[1,2]);parser.add_argument('--prediction-faults',action='store_true');parser.add_argument('--drop-disconnects',action='store_true');parser.add_argument('--authority-blackout',action='store_true');parser.add_argument('--timeout',type=float);parser.add_argument('--player-extra-args',nargs=argparse.REMAINDER,default=[]);a=parser.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 sel=selectors.DefaultSelector();pending=[];serial=0;stats={'received':0,'dropped':0,'delayed':0,'duplicated':0,'bindings':[]};children=[];logs=[];relays=[]
 def launch(name,*args):
  log=(a.output/(name+'.log')).open('w');logs.append(log)
@@ -68,6 +68,8 @@ try:
     stats['dropped']+=1;stats['disconnectDrops']=stats.get('disconnectDrops',0)+1;continue
    if kind==5 and relay['dataStarted'] is None:relay['dataStarted']=time.monotonic()
    age=0 if relay['dataStarted'] is None else time.monotonic()-relay['dataStarted']
+   if a.authority_blackout and kind==5 and reverse and 2.5<=age<6.5:
+    stats['dropped']+=1;stats['authorityBlackoutDrops']=stats.get('authorityBlackoutDrops',0)+1;continue
    if a.prediction_faults and kind==5 and not reverse and 1.5<=age<2.4:
     stats['dropped']+=1;stats['inputBlackoutDrops']=stats.get('inputBlackoutDrops',0)+1;continue
    handshake=(reverse,kind)

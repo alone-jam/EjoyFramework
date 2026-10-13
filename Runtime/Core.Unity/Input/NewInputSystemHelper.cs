@@ -111,10 +111,26 @@ namespace EjoyFramework.Core.Unity
 
         // ===== Key 解析 =====
 
-        /// <summary>解析 keyName -> 当前键盘上的 KeyControl；处理鼠标按键名；失败返回 null。</summary>
-        private KeyControl ResolveKeyControl(string keyName)
+        /// <summary>解析 KeyCode 风格名到当前设备的 ButtonControl；标准 Mouse0–Mouse4 无需键盘。</summary>
+        private ButtonControl ResolveKeyControl(string keyName)
         {
             if (string.IsNullOrEmpty(keyName)) return null;
+            // Resolve pointer buttons before requiring a keyboard (mouse-only devices are valid).
+            // Input System's standard Mouse exposes five buttons; absent Mouse5/6 return null.
+            if (keyName.Length == 6 && keyName.StartsWith("Mouse", StringComparison.OrdinalIgnoreCase))
+            {
+                var mouse = Mouse.current;
+                if (mouse == null) return null;
+                switch (keyName[5])
+                {
+                    case '0': return mouse.leftButton;
+                    case '1': return mouse.rightButton;
+                    case '2': return mouse.middleButton;
+                    case '3': return mouse.forwardButton;
+                    case '4': return mouse.backButton;
+                    case '5': case '6': return null;
+                }
+            }
             var kb = Keyboard.current;
             if (kb == null) return null;
 

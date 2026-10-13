@@ -299,8 +299,10 @@ namespace EjoyFramework.GamePlay.Tests.Netcode.Session
             Span<byte> frame = stackalloc byte[34];
             Assert.That(TickInputFrameCodec.TryEncode(in header, bits.WrittenSpan, frame, out int written, out _), Is.True);
             var context = Context();
+            // Tie the borrowed output to the stack buffer lifetime for Unity's C# compiler.
+            ReadOnlySpan<byte> payload = frame;
             Assert.That(TickInputFrameCodec.TryDecode(frame.Slice(0, written), in context, out var decoded,
-                out var payload, out _), Is.True);
+                out payload, out _), Is.True);
             var reader = new NetBitReader(payload, decoded.PayloadBitLength);
             reader.TryReadBits(3, out uint buttons);
             reader.TryReadBits(10, out uint acceleration);

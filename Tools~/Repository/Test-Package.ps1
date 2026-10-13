@@ -19,7 +19,7 @@ foreach ($file in $files) {
     if ($file -match '(^|/)(Library|Temp|Logs|UserSettings|bin|obj|TestResults)/|\.(zip|7z|bundle|log)$') {
         throw "Generated or downloaded artifact in package: $file"
     }
-    if ((Get-Item -LiteralPath $path).Length -gt 100MB) { throw "Oversized package file: $file" }
+    if ((Get-Item -LiteralPath $path -Force).Length -gt 100MB) { throw "Oversized package file: $file" }
     # These are the files Unity imports from the package, excluding optional samples and test hosts.
     $imported = $file -notmatch '(^|/)(\.[^/]+|[^/]+~)(/|$)'
     if ($imported -and $file -notlike '*.meta' -and -not (Test-Path -LiteralPath ($path + '.meta'))) {

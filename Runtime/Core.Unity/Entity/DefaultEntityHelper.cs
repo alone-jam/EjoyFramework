@@ -35,6 +35,17 @@ namespace EjoyFramework.Core.Unity
             var go = entityInstance as GameObject;
             if (go == null) throw new FrameworkException("Entity instance is not a GameObject.");
 
+            // Keep framework IDs independent of Unity's opaque EntityId in 6000.6+.
+            // Validate before adding logic or invoking any lifecycle callback.
+            EntityData data = userData as EntityData;
+#if UNITY_6000_6_OR_NEWER
+            if (data == null)
+                throw new FrameworkException("Unity 6000.6+ requires explicit EntityData.EntityId. Pass the same integer ID used by ShowEntity; Unity EntityId cannot be converted to a framework ID.");
+            int entityId = data.EntityId;
+#else
+            int entityId = data != null ? data.EntityId : go.GetInstanceID();
+#endif
+
             EntityLogic logic = go.GetComponent<EntityLogic>();
             if (logic == null)
             {
@@ -43,8 +54,6 @@ namespace EjoyFramework.Core.Unity
             }
 
             // 解析 EntityData
-            EntityData data = userData as EntityData;
-            int entityId = data != null ? data.EntityId : go.GetInstanceID();
             string assetName = data != null ? data.AssetName : go.name;
 
             var entity = new DefaultEntity(entityId, assetName, entityGroup, go, logic);
@@ -139,7 +148,8 @@ namespace EjoyFramework.Core.Unity
     }
 
     /// <summary>
-    /// 业务侧传入 ShowEntity 的可选 userData，用于设置 EntityId / AssetName。
+    /// 业务侧传入 ShowEntity 的 userData，用于设置 EntityId / AssetName。
+    /// Unity 6000.6+ 必须显式提供，EntityId 应与 ShowEntity 的整数 ID 一致。
     /// </summary>
     public sealed class EntityData
     {

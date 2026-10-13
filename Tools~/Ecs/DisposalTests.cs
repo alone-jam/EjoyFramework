@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using EjoyFramework.Core.Ecs;
@@ -17,6 +16,7 @@ namespace EjoyFramework.EcsLifetimeTests
             var world = new World();
             var query = world.Query().WithAll<Payload>();
             var storage = AllocateAndObserveStorage(world);
+            Assert.That(storage.IsAlive, Is.True, "The observation must refer to live storage before disposal.");
             world.Dispose();
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -32,10 +32,14 @@ namespace EjoyFramework.EcsLifetimeTests
         private static WeakReference AllocateAndObserveStorage(World world)
         {
             for (int i = 0; i < 256; i++) world.Set(world.CreateEntity(), new Payload { Value = i });
-            var pools = (IDictionary)typeof(World).GetField("m_Pools", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(world);
-            var pool = pools[typeof(Payload)];
-            var data = pool.GetType().GetField("m_Data", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(pool);
-            return new WeakReference(data);
+            var pools = (Array)typeof(World).GetField("m_Pools", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(world);
+            foreach (var pool in pools)
+            {
+                if (pool == null) continue;
+                var data = pool.GetType().GetField("m_Data", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(pool);
+                if (data is Payload[]) return new WeakReference(data);
+            }
+            throw new InvalidOperationException("The populated Payload storage was not found.");
         }
     }
 }

@@ -214,12 +214,12 @@ namespace EjoyFramework.GamePlay.Tests.Netcode.Sync
             Assert.That(scratch[0].Entity.NetworkId, Is.EqualTo(1));
         }
 
-        [TestCase(0, 0x5678, 13u, ComponentSnapshotError.InvalidCodec)]
-        [TestCase(0x1234, 0, 13u, ComponentSnapshotError.InvalidCodec)]
-        [TestCase(0x1235, 0x5678, 13u, ComponentSnapshotError.CodecIdentityMismatch)]
-        [TestCase(0x1234, 0x5679, 13u, ComponentSnapshotError.CodecIdentityMismatch)]
-        [TestCase(0x1234, 0x5678, 12u, ComponentSnapshotError.CodecIdentityMismatch)]
-        [TestCase(0x1234, 0x5678, uint.MaxValue, ComponentSnapshotError.CodecIdentityMismatch)]
+        [TestCase((ushort)0, (ushort)0x5678, 13u, ComponentSnapshotError.InvalidCodec)]
+        [TestCase((ushort)0x1234, (ushort)0, 13u, ComponentSnapshotError.InvalidCodec)]
+        [TestCase((ushort)0x1235, (ushort)0x5678, 13u, ComponentSnapshotError.CodecIdentityMismatch)]
+        [TestCase((ushort)0x1234, (ushort)0x5679, 13u, ComponentSnapshotError.CodecIdentityMismatch)]
+        [TestCase((ushort)0x1234, (ushort)0x5678, 12u, ComponentSnapshotError.CodecIdentityMismatch)]
+        [TestCase((ushort)0x1234, (ushort)0x5678, uint.MaxValue, ComponentSnapshotError.CodecIdentityMismatch)]
         public void MatchingWireAndContextCannotBypassSelectedCodecIdentity(ushort schema, ushort revision,
             uint bits, ComponentSnapshotError expectedError)
         {

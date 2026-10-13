@@ -301,13 +301,51 @@ namespace EjoyFramework.Tests
             var pools = new List<ObjectPoolBase>(4);
             m_Manager.GetAllObjectPools(pools);
 
-            Assert.That(() =>
+            TestDelegate steadyState = () =>
             {
                 m_Manager.Release();
                 m_Manager.GetAllObjectPools(pools);
-            }, Is.Not.AllocatingGCMemory());
+            };
+            // Warm the exact delegate as well as the APIs: Mono instruments/JITs it
+            // on first invocation. The measured path still includes both operations.
+            steadyState();
+            Assert.That(steadyState, Is.Not.AllocatingGCMemory());
 
             Assert.AreEqual(2, pools.Count);
+        }
+
+        [Test]
+        public void NamedConsumerPools_CanBeFoundAndDestroyedIndependently()
+        {
+            IObjectPoolManager manager = m_Manager;
+            var enemy = manager.CreateSingleSpawnObjectPool<PoolObj>("arena.enemies", 60, 16, 60, 0);
+            var other = manager.CreateSingleSpawnObjectPool<PoolObj>("preview.enemies", 60, 16, 60, 0);
+            var resource = PoolObj.Make("enemy"); enemy.Register(resource, false);
+            Assert.That(manager.HasObjectPool<PoolObj>("arena.enemies"), Is.True);
+            Assert.That(manager.GetObjectPool<PoolObj>("arena.enemies"), Is.SameAs(enemy));
+            Assert.That(manager.DestroyObjectPool<PoolObj>("arena.enemies"), Is.True);
+            Assert.That(resource.Released, Is.True);
+            Assert.That(manager.GetObjectPool<PoolObj>("arena.enemies"), Is.Null);
+            Assert.That(manager.GetObjectPool<PoolObj>("preview.enemies"), Is.SameAs(other));
+            Assert.That(manager.DestroyObjectPool<PoolObj>("arena.enemies"), Is.False);
+            Assert.That(manager.Count, Is.EqualTo(1));
+        }
+
+        [TestCase("pool")]
+        [TestCase("manager")]
+        [TestCase("enumeration")]
+        public void ReleaseOperations_WarmedDelegate_DoesNotAllocate(string operation)
+        {
+            var a = m_Manager.CreateSingleSpawnObjectPool<PoolObj>("a", 60f, 16, 60f, 2);
+            var b = m_Manager.CreateSingleSpawnObjectPool<PoolObj>("b", 60f, 16, 60f, 1);
+            a.Prewarm(2, () => PoolObj.Make(string.Empty));
+            b.Prewarm(2, () => PoolObj.Make(string.Empty));
+            var pools = new List<ObjectPoolBase>(4);
+            TestDelegate body = operation == "pool" ? (TestDelegate)(() => a.Release())
+                : operation == "manager" ? () => m_Manager.Release()
+                : () => m_Manager.GetAllObjectPools(pools);
+            for (int i = 0; i < 8; i++) body();
+            Assert.That(body, Is.Not.AllocatingGCMemory());
         }
 
         // ================================================================

@@ -2,6 +2,31 @@
 
 本文区分当前待验证改动与历史基线。历史报告路径属于 Game 仓库，不作为本轮独立包测试结果；迁移记录及 unity-cli 命令见 [PackageMigration](../../docs/PackageMigration.md)。
 
+## GitHub 问题与真实资源消费回归（2026-10-13）
+
+- Unity 6000.4.8f1：完整包 EditMode **3,404 通过、8 跳过、0 失败**（共 3,412），.NET 8 ECS **504/504**。测试证据：云端 `Framework.GitHub.EditMode.xml` 与 `Ecs.GitHub.trx`。
+- #1：NewInputSystemHelper 在检查 Keyboard.current 前映射标准 Mouse0–Mouse4，支持 held/down/up，Mouse5/6 在标准 Mouse 未提供对应按钮时返回 false。官方 InputTestFixture 隔离输入状态，覆盖纯鼠标、设备缺失、非法按钮和键盘替换；真实游戏通过 InputManager 的 Mouse0 绑定消费修复。
+- #2：保留 32 位 GUID 修复及 Linux 隐藏文件包策略修复。
+- #3：Unity 6000.6+ 编译分支要求调用者显式传 EntityData.EntityId，并在挂载逻辑/生命周期前拒绝缺失 ID；不对 Unity EntityId 做整数转换、哈希或位布局假设。旧版本保留 GetInstanceID 回退。显式 ID 与旧版本回退测试已在 6000.4.8f1 运行；**未安装/运行 6000.6，不声称该版本已验证**。官方 API 依据：https://docs.unity3d.com/6000.6/Documentation/ScriptReference/EntityId.html 。
+- 真实资源消费游戏目标继续固定 6000.4.8f1。此次包测试数字不表示游戏美术/动画验收自动完成。
+
+## 云端消费项目复验（2026-10-12）
+
+Debian 13 x64；.NET SDK 8.0.425 / CoreCLR 8.0.31；Unity 6000.4.8f1。
+独立真实游戏位于同级 `EjoyArena`，通过 UPM `file:../../EjoyFramework` 消费本包。
+
+- .NET ECS：默认 JIT/分层编译下全套 504 通过。原 DisposalTests 对旧字典池结构的反射改为验证当前池数组；保留释放前存活、释放后可回收的断言。
+- 容量分配测试曾偶发报告 7,976 字节。无框架、无 NUnit 的纯整数函数循环在后台 GC 时也复现约 8 KB 增量。CoreCLR 8.0.31 的 `GetAllocatedBytesForCurrentThread` 包含线程未使用分配区扣减；后台标记结束的 `void_allocation` 清空该区且没有同时扣减 `alloc_bytes`，因此计数可能增加而没有用户对象分配。
+- 容量测试只在 .NET 测量区间使用短 NoGCRegion，进入/退出不计时，不更改 JIT，不预先填充被测目标、不放宽零字节断言。已知 1 KB 分配的正向对照使用同一测量函数；Unity 仍使用 GC.Alloc 约束。独立对照 100 个普通区间出现 9 次增量，100 个隔离区间无增量。
+- Unity 包 EditMode：3,392 通过、8 跳过、0 失败（3,400 总数）；游戏 EditMode 4/4、PlayMode 3/3。命名对象池公开查找/销毁接口由游戏场景生命周期需求补齐，游戏回归检查三次场景重载后池数量不增长、旧 World 已释放。
+- Linux Mono 开发构建已运行。Xvfb/Mesa llvmpipe 是软件渲染，不能代表硬件 GPU 性能；无 IL2CPP、真机、人工手感验收。
+
+对应官方运行时源码：
+[线程计数](https://github.com/dotnet/runtime/blob/v8.0.31/src/coreclr/vm/comutilnative.cpp#L936)、
+[void_allocation](https://github.com/dotnet/runtime/blob/v8.0.31/src/coreclr/gc/gc.cpp#L7944)、
+[后台标记结束](https://github.com/dotnet/runtime/blob/v8.0.31/src/coreclr/gc/gc.cpp#L38628)。
+完整日志、最小复现与游戏交付报告位于本次云工作区 `/workspace/unity-setup` 和 `/workspace/EjoyArena/Artifacts`，不纳入 UPM 运行时代码。
+
 ## WS5-M3 当前验证状态（2026-10-03）
 
 本轮在 Mac 上继续开发，**未进行编译或测试执行**。最初独立 .NET 检查因缺少还原资产（NETSDK1004）停在编译之前；之后按用户要求不安装/还原环境，先实现和静态审查。下方旧测试通过记录不适用于本轮改动。

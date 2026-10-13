@@ -276,12 +276,29 @@ namespace EjoyFramework.Tests.Ecs
 #if UNITY_5_3_OR_NEWER
             Assert.That(body, Is.Not.AllocatingGCMemory());
 #else
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            body();
-            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.That(allocated, Is.Zero);
+            Assert.That(MeasureManagedAllocation(body), Is.Zero);
 #endif
         }
+
+#if !UNITY_5_3_OR_NEWER
+        private static long MeasureManagedAllocation(TestDelegate body)
+        {
+            // CoreCLR background marking voids unused thread allocation contexts. That can
+            // raise GetAllocatedBytesForCurrentThread even across a loop with no allocations.
+            // Isolate the measurement from GC; retain default JIT/tiering and count all actual
+            // allocations. Enter/exit are outside the interval, and the positive control below
+            // uses this same path so accidental allocations still fail the zero-byte assertion.
+            Assert.That(GC.TryStartNoGCRegion(16 * 1024 * 1024), Is.True,
+                "Allocation measurement requires a short isolated GC interval.");
+            try
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                body();
+                return GC.GetAllocatedBytesForCurrentThread() - before;
+            }
+            finally { GC.EndNoGCRegion(); }
+        }
+#endif
 
         [Test]
         public void AllocationDetector_ObservesKnownManagedAllocation()
@@ -292,10 +309,7 @@ namespace EjoyFramework.Tests.Ecs
 #if UNITY_5_3_OR_NEWER
             Assert.That(body, new AllocatingGCMemoryConstraint());
 #else
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            body();
-            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.That(allocated, Is.GreaterThanOrEqualTo(1024));
+            Assert.That(MeasureManagedAllocation(body), Is.GreaterThanOrEqualTo(1024));
 #endif
             GC.KeepAlive(retained);
         }

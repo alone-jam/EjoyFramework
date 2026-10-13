@@ -60,6 +60,69 @@ namespace EjoyFramework.Tests
                 Assert.That(helper.GetKeyUp(name), Is.False);
             }
         }
+        [TestCase("GamepadSouth", GamepadButton.South)]
+        [TestCase("GamepadNorth", GamepadButton.North)]
+        [TestCase("GamepadWest", GamepadButton.West)]
+        [TestCase("GamepadEast", GamepadButton.East)]
+        [TestCase("GamepadLeftShoulder", GamepadButton.LeftShoulder)]
+        [TestCase("GamepadRightShoulder", GamepadButton.RightShoulder)]
+        [TestCase("GamepadLeftStickPress", GamepadButton.LeftStick)]
+        [TestCase("GamepadRightStickPress", GamepadButton.RightStick)]
+        [TestCase("GamepadStart", GamepadButton.Start)]
+        [TestCase("GamepadSelect", GamepadButton.Select)]
+        [TestCase("GamepadDpadUp", GamepadButton.DpadUp)]
+        [TestCase("GamepadDpadDown", GamepadButton.DpadDown)]
+        [TestCase("GamepadDpadLeft", GamepadButton.DpadLeft)]
+        [TestCase("GamepadDpadRight", GamepadButton.DpadRight)]
+        public void GamepadOnly_ButtonEdgesFollowReplacementDevice(string name, GamepadButton button)
+        {
+            var helper = new NewInputSystemHelper();
+            Assert.That(helper.GetKey(name), Is.False);
+            var pad = InputSystem.AddDevice<Gamepad>();
+            Assert.That(Keyboard.current, Is.Null);
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(button)); InputSystem.Update();
+            Assert.That(helper.GetKey(name.ToLowerInvariant()), Is.True);
+            Assert.That(helper.GetKeyDown(name), Is.True);
+            InputSystem.QueueStateEvent(pad, new GamepadState()); InputSystem.Update();
+            Assert.That(helper.GetKeyUp(name), Is.True);
+            InputSystem.RemoveDevice(pad);
+            Assert.That(helper.GetKey(name), Is.False);
+            pad = InputSystem.AddDevice<Gamepad>();
+            Assert.That(helper.GetKeyDown(name), Is.False);
+            InputSystem.QueueStateEvent(pad, new GamepadState().WithButton(button)); InputSystem.Update();
+            Assert.That(helper.GetKeyDown(name), Is.True);
+        }
+
+        [Test] public void GamepadAxesAndTriggersFlowThroughContextAndDisconnect()
+        {
+            var manager = new EjoyFramework.Core.Input.InputManager();
+            EjoyFramework.Core.Framework.MarkMainThread();
+            manager.SetHelper(new NewInputSystemHelper());
+            var names = new[] { "GamepadLeftStickX", "GamepadLeftStickY", "GamepadRightStickX", "GamepadRightStickY", "GamepadLeftTrigger", "GamepadRightTrigger" };
+            foreach (var name in names)
+            {
+                manager.SetBinding(name, EjoyFramework.Core.Input.InputBinding.Axis(name.ToLowerInvariant()));
+                Assert.That(manager.GetAxis(name), Is.Zero);
+            }
+            var pad = InputSystem.AddDevice<Gamepad>();
+            InputSystem.QueueStateEvent(pad, new GamepadState { leftStick = new UnityEngine.Vector2(1, -1), rightStick = new UnityEngine.Vector2(-1, 1), leftTrigger = 0.75f, rightTrigger = 1 });
+            InputSystem.Update();
+            var expected = new[] { 1f, -1f, -1f, 1f, 0.75f, 1f };
+            for (int i = 0; i < names.Length; i++) Assert.That(manager.GetAxis(names[i]), Is.EqualTo(expected[i]).Within(0.001f));
+            manager.SetBinding("Fire", EjoyFramework.Core.Input.InputBinding.Key("GamepadRightTrigger"));
+            Assert.That(manager.GetButtonDown("Fire"), Is.True);
+            manager.PushContext(EjoyFramework.Core.Input.InputContext.Menu);
+            foreach (var name in names) Assert.That(manager.GetAxis(name), Is.Zero);
+            Assert.That(manager.GetButton("Fire"), Is.False);
+            manager.PopContext();
+            Assert.That(manager.GetButton("Fire"), Is.True);
+            InputSystem.QueueStateEvent(pad, new GamepadState()); InputSystem.Update();
+            Assert.That(manager.GetButtonUp("Fire"), Is.True);
+            InputSystem.RemoveDevice(pad);
+            foreach (var name in names) Assert.That(manager.GetAxis(name), Is.Zero);
+            manager.Shutdown();
+        }
+
         [Test] public void KeyboardAliasCache_FollowsReplacementKeyboard()
         {
             var helper = new NewInputSystemHelper();

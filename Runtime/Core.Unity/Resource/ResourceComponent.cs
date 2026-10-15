@@ -25,6 +25,10 @@ namespace EjoyFramework.Core.Unity
     [AddComponentMenu("EjoyFramework/Core/Resource")]
     public sealed class ResourceComponent : GameFrameworkComponent
     {
+        private const string UnsupportedResourcesModeError =
+            "ResourceMode.Resources is not implemented. Select EditorSimulation in the Editor or "
+            + "AssetBundle with generated bundles and a manifest. No fallback loader will be selected.";
+
         [SerializeField]
         private ResourceMode m_ResourceMode = ResourceMode.EditorSimulation;
 
@@ -63,6 +67,8 @@ namespace EjoyFramework.Core.Unity
 
         protected override void Awake()
         {
+            // Reject before registration or changing the shared resource manager's configuration.
+            EnsureSupportedMode(m_ResourceMode);
             base.Awake();
             m_ResourceManager = Framework.GetModule<IResourceManager>();
             if (m_ResourceManager == null)
@@ -104,6 +110,12 @@ namespace EjoyFramework.Core.Unity
         /// </summary>
         public void InitializeAsync(Action onComplete, Action<string> onFailure)
         {
+            if (m_ResourceMode == ResourceMode.Resources)
+            {
+                if (onFailure != null) onFailure(UnsupportedResourcesModeError);
+                else Log.Error(UnsupportedResourcesModeError);
+                return;
+            }
             if (m_ResourceManager == null) { if (onFailure != null) onFailure("ResourceManager not ready"); return; }
             if (m_InitTriggered) { if (onFailure != null) onFailure("InitializeAsync already triggered"); return; }
             m_InitTriggered = true;
@@ -204,6 +216,7 @@ namespace EjoyFramework.Core.Unity
 
         private IResourceLoader CreateLoader(ResourceMode mode)
         {
+            EnsureSupportedMode(mode);
             // AssetBundleLoader 通过 ICoroutineManager 驱动协程（解耦 MonoBehaviour）；
             // CoroutineComponent.Start 注入 Helper，业务调 LoadAsset 时机晚于 Start，时序安全。
             var coroutine = Framework.GetModule<ICoroutineManager>();
@@ -215,15 +228,17 @@ namespace EjoyFramework.Core.Unity
 #endif
                 case ResourceMode.AssetBundle:
                     return new AssetBundleLoader(coroutine, m_MaxConcurrentBundleLoads, m_BundleUnloadDelay);
-                case ResourceMode.Resources:
-                    Log.Warning("Resources mode is not implemented yet; falling back to AssetBundle.");
-                    return new AssetBundleLoader(coroutine, m_MaxConcurrentBundleLoads, m_BundleUnloadDelay);
                 default:
                     // Player build with EditorSimulation serialized lands here (the EditorSimulation
                     // case is stripped by #if UNITY_EDITOR). Ship a production-safe loader instead
                     // of a fatal error — the build settings doc covers this.
                     return new AssetBundleLoader(coroutine, m_MaxConcurrentBundleLoads, m_BundleUnloadDelay);
             }
+        }
+
+        private static void EnsureSupportedMode(ResourceMode mode)
+        {
+            if (mode == ResourceMode.Resources) throw new FrameworkException(UnsupportedResourcesModeError);
         }
 
         private IEnumerator InitializeRoutine(Action onComplete, Action<string> onFailure)

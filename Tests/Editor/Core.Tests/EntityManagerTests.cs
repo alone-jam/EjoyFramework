@@ -18,7 +18,12 @@ namespace EjoyFramework.Tests
     /// </summary>
     public class EntityManagerTests
     {
-        private sealed class FakeInstance { public string Name; public bool Released; }
+        private sealed class FakeInstance
+        {
+            public string Name;
+            public bool Released, Active;
+            public int Updates, Hides, ShutdownHides, Releases;
+        }
 
         private sealed class FakeEntity : IEntity
         {
@@ -43,11 +48,23 @@ namespace EjoyFramework.Tests
             {
                 CreateCount++;
                 var fi = instance as FakeInstance;
-                return new FakeEntity { Id = 0, EntityAssetName = fi != null ? fi.Name : null, Handle = instance, EntityGroup = group };
+                if (fi != null) fi.Active = true;
+                return new FakeEntity { Id = userData is int id ? id : 0, EntityAssetName = fi != null ? fi.Name : null, Handle = instance, EntityGroup = group };
             }
 
-            public void HideEntity(IEntity entity, bool isShutdown, object userData) { HideCount++; }
-            public void UpdateEntity(IEntity entity, float elapseSeconds, float realElapseSeconds) { UpdateCount++; }
+            public void HideEntity(IEntity entity, bool isShutdown, object userData)
+            {
+                HideCount++;
+                var instance = (FakeInstance)entity.Handle;
+                instance.Active = false;
+                instance.Hides++;
+                if (isShutdown) instance.ShutdownHides++;
+            }
+            public void UpdateEntity(IEntity entity, float elapseSeconds, float realElapseSeconds)
+            {
+                UpdateCount++;
+                ((FakeInstance)entity.Handle).Updates++;
+            }
             public void AttachEntity(IEntity child, IEntity parent, object userData) { AttachCount++; }
             public void DetachEntity(IEntity child, IEntity parent, object userData) { DetachCount++; }
 
@@ -55,7 +72,7 @@ namespace EjoyFramework.Tests
             {
                 ReleaseCount++;
                 var fi = instance as FakeInstance;
-                if (fi != null) fi.Released = true;
+                if (fi != null) { fi.Released = true; fi.Releases++; }
             }
         }
 
@@ -149,6 +166,64 @@ namespace EjoyFramework.Tests
             Assert.AreEqual(instantiateCountAfterFirst, m_Helper.InstantiateCount,
                 "InstantiateEntity should NOT be called when pool hits");
             Assert.IsTrue(m_EM.HasEntity(2));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SamePrefab_ConcurrentEntitiesHaveExclusiveLifetimesAndReuseOnlyHiddenInstances(bool async)
+        {
+            const string asset = "Entities/Target.prefab";
+            m_Res.Async = async;
+            var instances = new FakeInstance[3];
+            for (int i = 0; i < instances.Length; i++)
+            {
+                int id = 100 + i;
+                m_EM.ShowEntity(id, asset, "Default", 0, id);
+                // Complete each load while all previously shown entities remain active.
+                if (async) m_Res.FlushAllPending();
+                var entity = m_EM.GetEntity(id);
+                Assert.That(entity.Id, Is.EqualTo(id));
+                instances[i] = (FakeInstance)entity.Handle;
+                Assert.That(instances[i].Active, Is.True);
+                for (int j = 0; j < i; j++) Assert.That(instances[i], Is.Not.SameAs(instances[j]));
+            }
+            Assert.That(m_Helper.InstantiateCount, Is.EqualTo(3));
+            Assert.That(m_EM.GetEntities(asset).Length, Is.EqualTo(3));
+            Assert.That(m_EM.GetEntityGroup("Default").EntityCount, Is.EqualTo(3));
+
+            m_EM.Update(.1f, .1f);
+            foreach (var instance in instances) Assert.That(instance.Updates, Is.EqualTo(1));
+            m_EM.HideEntity(101);
+            Assert.That(instances[1].Active, Is.False);
+            Assert.That(instances[1].Hides, Is.EqualTo(1));
+            Assert.That(m_EM.HasEntity(101), Is.False);
+            Assert.That(m_EM.GetEntity(100).Id, Is.EqualTo(100));
+            Assert.That(m_EM.GetEntity(102).Id, Is.EqualTo(102));
+            m_EM.Update(.1f, .1f);
+            for (int i = 0; i < instances.Length; i++)
+            {
+                Assert.That(instances[i].Updates, Is.EqualTo(i == 1 ? 1 : 2));
+                Assert.That(instances[i].Active, Is.EqualTo(i != 1));
+                Assert.That(instances[i].Hides, Is.EqualTo(i == 1 ? 1 : 0));
+            }
+
+            m_EM.ShowEntity(103, asset, "Default", 0, 103);
+            Assert.That(m_EM.GetEntity(103).Handle, Is.SameAs(instances[1]));
+            Assert.That(m_EM.GetEntity(103).Id, Is.EqualTo(103));
+            Assert.That(m_Helper.InstantiateCount, Is.EqualTo(3), "Only the idle instance should be reused.");
+            Assert.That(m_Res.PendingHandlesView.Count, Is.Zero);
+            m_EM.Shutdown();
+            Assert.That(m_EM.EntityCount, Is.Zero);
+            m_OP.Shutdown();
+            foreach (var instance in instances)
+            {
+                Assert.That(instance.Active, Is.False);
+                Assert.That(instance.ShutdownHides, Is.EqualTo(1));
+                Assert.That(instance.Released, Is.True);
+                Assert.That(instance.Releases, Is.EqualTo(1));
+            }
+            Assert.That(m_Helper.ReleaseCount, Is.EqualTo(3));
+            Assert.That(m_Res.UnloadCalls, Is.EqualTo(3));
         }
 
         [Test]

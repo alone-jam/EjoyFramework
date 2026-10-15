@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>EjoyFramework.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Netcode/EjoyFramework.Core.SessionSupport.csproj" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <Compile Include="../../Tests/Editor/Core.Tests/EntityManagerTests.cs" />
+    <Compile Include="../../Tests/Editor/Core.Tests/TestSupport/MockResourceManager.cs" />
+    <Compile Include="../../Tests/Editor/Core.Tests/TestSupport/MockAssetLoadHandle.cs" />
+  </ItemGroup>
+</Project>

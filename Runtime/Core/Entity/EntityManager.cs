@@ -137,8 +137,9 @@ namespace EjoyFramework.Core.Entity
             if (string.IsNullOrEmpty(name)) throw new FrameworkException("Entity group name is invalid.");
             if (m_Groups.ContainsKey(name)) return false;
 
-            // 每个 group 独立实例池，便于按组配置 autoRelease/capacity/expire
-            var pool = ObjectPool.CreateMultiSpawnObjectPool<EntityInstanceObject>(
+            // Live instances have one owner: active entities must never borrow the same Target.
+            // Idle instances with the same asset name remain reusable after HideEntity.
+            var pool = ObjectPool.CreateSingleSpawnObjectPool<EntityInstanceObject>(
                 EntityPoolPrefix + name, autoReleaseInterval, capacity, expireTime, priority);
 
             m_Groups.Add(name, new EntityGroup(name, helper, pool));

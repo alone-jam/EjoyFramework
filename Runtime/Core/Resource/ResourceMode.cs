@@ -9,7 +9,7 @@ namespace EjoyFramework.Core.Resource
     /// 资源加载模式。
     /// EditorSimulation: 仅编辑器，直接通过 AssetDatabase 加载，无需打 AB。
     /// AssetBundle: 运行时通过 AssetBundle 加载，依赖 manifest 与构建产物。
-    /// Resources: 通过 Unity Resources.LoadAsync 加载（仅供应急/小项目）。
+    /// Resources: 保留值，内置 Resources.LoadAsync 后端尚未实现；ResourceComponent 会明确拒绝初始化。
     /// </summary>
     public enum ResourceMode : byte
     {

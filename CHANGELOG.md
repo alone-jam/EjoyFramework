@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - Consumer resource, entity and Unity compatibility issues
+
+- Entity groups use exclusive instance pools: simultaneous entities using the same prefab own
+  distinct handles, and only hidden instances are reused (#17).
+- `ResourceComponent` rejects the unsupported `Resources` mode before configuring the manager;
+  `InitializeAsync` reports the unsupported mode rather than selecting an AssetBundle loader (#16).
+- Static physics history indexes registered Collider objects directly, removing the two
+  `GetInstanceID()` calls that fail compilation in Unity 6000.6+ (#3).
+- Added shared entity lifecycle regressions and a standalone CoreCLR test project in CI, plus
+  Unity EditMode tests for mode rejection and static collider registration identity.
+
 The M2/M3/M4 development changes below have received scoped static reviews, but the combined package
 has not yet been compiled or exercised in Unity. Historical CoreCLR results for an earlier M2 revision
 are not validation of this integrated version; target-runtime allocations and coverage remain unmeasured.

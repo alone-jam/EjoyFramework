@@ -15,6 +15,8 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Test self-authored ECS
         run: dotnet test Tools~/Ecs/EjoyFramework.Core.Ecs.Tests.csproj --configuration Release
+      - name: Test entity instance lifecycle
+        run: dotnet test Tools~/Core/EjoyFramework.Core.Lifecycle.Tests.csproj --configuration Release
       - name: Test bounded tick codecs and sessions
         run: |
           dotnet test Tools~/Netcode/EjoyFramework.GamePlay.Netcode.Codec.Tests.csproj --configuration Release

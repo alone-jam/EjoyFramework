@@ -39,5 +39,34 @@ namespace EjoyFramework.GamePlay.Tests
             wall.transform.position=Vector3.right;Physics.SyncTransforms();history.Capture(2,Array.Empty<HistoricalCollider>());
             Assert.Throws<InvalidOperationException>(()=>query.Sweep(1,2,V.Zero,V.UnitZ,20,.1f,uint.MaxValue,0,out _));
         }
+
+        [Test] public void ColliderKeysPreserveDistinctRegistrationIdsForSameNamedObjects()
+        {
+            var other=UnityEngine.Object.Instantiate(wall);other.name=wall.name;
+            try
+            {
+                wall.transform.position=new Vector3(-2,0,5);other.transform.position=new Vector3(2,0,5);Physics.SyncTransforms();
+                var second=other.GetComponent<MeshCollider>();
+                query=new StaticPhysicsHistoricalQuery(history,Physics.defaultPhysicsScene,new Collider[]{collider,second},1<<29,7,0x80000000);
+                Assert.That(query.Sweep(1,1,new V(-2,0,0),V.UnitZ,20,0,uint.MaxValue,0,out var firstHit),Is.EqualTo(HistoricalQueryStatus.Hit));
+                Assert.That(firstHit.Collider.ShapeId,Is.EqualTo(0));
+                Assert.That(query.Sweep(1,1,new V(2,0,0),V.UnitZ,20,0,uint.MaxValue,0,out var secondHit),Is.EqualTo(HistoricalQueryStatus.Hit));
+                Assert.That(secondHit.Collider.ShapeId,Is.EqualTo(1));
+                Assert.Throws<ArgumentException>(()=>new StaticPhysicsHistoricalQuery(history,Physics.defaultPhysicsScene,new Collider[]{collider,collider},1<<29,7,0x80000000));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(other); }
+        }
+
+        [Test] public void UnregisteredColliderInStaticLayerIsRejected()
+        {
+            var other=UnityEngine.Object.Instantiate(wall);
+            try
+            {
+                other.transform.position=new Vector3(3,0,5);Physics.SyncTransforms();
+                Assert.Throws<InvalidOperationException>(()=>query.Sweep(1,1,new V(3,0,0),V.UnitZ,20,0,uint.MaxValue,0,out _));
+                Assert.Throws<InvalidOperationException>(()=>query.Sweep(1,1,new V(3,0,5),V.UnitZ,20,.1f,uint.MaxValue,0,out _));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(other); }
+        }
     }
 }

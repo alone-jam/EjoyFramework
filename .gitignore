@@ -24,6 +24,7 @@ obj/
 *.tmp
 
 # Standalone framework validation projects are intentional repository inputs.
+!Tools~/Core/*.csproj
 !Tools~/Ecs/*.csproj
 !Tools~/Ecs/Directory.Build.props
 !Tools~/Ecs/*.cs

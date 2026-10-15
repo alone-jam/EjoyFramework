@@ -89,7 +89,7 @@ If neither exists when the effective mode is `AssetBundle`, the framework fails 
 |---|---|
 | `EditorSimulation` | Inspector default. AssetDatabase-backed loads for fast iteration. Cannot be used in player builds (auto-falls-back to `AssetBundle`). |
 | `AssetBundle` | Set this when you want to test the actual shipping data path inside the Editor (after running Build AssetBundles). Forces the runtime to read from StreamingAssets exactly as the player will. |
-| `Resources` | Reserved; currently falls back to AssetBundle with a warning. |
+| `Resources` | Reserved and unsupported. `ResourceComponent` rejects it during Awake and reports failure through `InitializeAsync`; it never selects an AssetBundle fallback. Use one of the supported modes above. |
 
 Set the mode on the **Resource** sub-component of `EjoyFramework.prefab`.
 

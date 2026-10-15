@@ -16,7 +16,9 @@ namespace EjoyFramework.GamePlay.Unity.Combat
         private readonly PhysicsScene scene;
         private readonly Collider[] geometry,overlaps;
         private readonly Matrix4x4[] poses;
-        private readonly Dictionary<int,ushort> ids;
+        // Keep Unity object identity as the key; shape IDs are explicit registration indices.
+        // GetInstanceID is unavailable in Unity 6000.6+, and no EntityId conversion is needed.
+        private readonly Dictionary<Collider,ushort> ids;
         private readonly ulong owner;
         private readonly uint mask;
         private readonly int layers;
@@ -28,12 +30,12 @@ namespace EjoyFramework.GamePlay.Unity.Combat
             if(!scene.IsValid()||staticGeometry==null||staticGeometry.Length==0||staticGeometry.Length>4096||layerMask==0||owner==0||categoryMask==0)throw new ArgumentException("Bounded static geometry and explicit layer/identity required.");
             // Registration and pose checks establish runtime immutability. GameObject.isStatic is a bake/editor flag, not a player contract.
             this.scene=scene;this.owner=owner;mask=categoryMask;layers=layerMask;
-            geometry=(Collider[])staticGeometry.Clone();overlaps=new Collider[geometry.Length+1];poses=new Matrix4x4[geometry.Length];ids=new Dictionary<int,ushort>(geometry.Length);
+            geometry=(Collider[])staticGeometry.Clone();overlaps=new Collider[geometry.Length+1];poses=new Matrix4x4[geometry.Length];ids=new Dictionary<Collider,ushort>(geometry.Length);
             for(int i=0;i<geometry.Length;i++)
             {
                 var c=geometry[i];
                 if(!c||!c.enabled||!c.gameObject.activeInHierarchy||c.isTrigger||(layers&(1<<c.gameObject.layer))==0||c.gameObject.scene.GetPhysicsScene()!=scene)throw new ArgumentException("Geometry must be enabled, non-trigger and in the specified scene/layer.");
-                ids.Add(c.GetInstanceID(),(ushort)i);poses[i]=c.transform.localToWorldMatrix;
+                ids.Add(c,(ushort)i);poses[i]=c.transform.localToWorldMatrix;
             }
         }
         public HistoricalQueryStatus Sweep(ulong epoch,uint tick,V origin,V direction,float distance,float radius,uint queryMask,ulong excludedOwner,out HistoricalHit hit)
@@ -70,7 +72,7 @@ namespace EjoyFramework.GamePlay.Unity.Combat
             }
             return result;
         }
-        private ushort Identity(Collider c)=>ids.TryGetValue(c.GetInstanceID(),out var id)?id:throw new InvalidOperationException("Unexpected collider in the static query layer.");
+        private ushort Identity(Collider c)=>ids.TryGetValue(c,out var id)?id:throw new InvalidOperationException("Unexpected collider in the static query layer.");
         private static Vector3 U(V value)=>new Vector3(value.X,value.Y,value.Z);
         private static V N(Vector3 value)=>new V(value.x,value.y,value.z);
     }

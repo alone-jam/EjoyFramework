@@ -21,7 +21,7 @@ namespace EjoyFramework.GamePlay.Tests.Combat
         {
             var history=new HistoricalHitWorld(4,4);history.Reset(1);history.Capture(1,new[]{HistoricalCollider.Sphere(2,1,0,2,new Vector3(0,.8f,0),.2f)});var world=new LinearProjectileWorld();world.Reset(1);var grenade=Grenade();grenade.ProximityRadius=1;world.Spawn(in grenade);var events=new ProjectileImpact[128];
             Assert.That(world.Advance(1,history,false,events).Impacts,Is.EqualTo(1));Assert.That(events[0].Hit.Collider.Owner,Is.EqualTo(2));Assert.That(events[0].Projectile.BounceTick,Is.Zero);
-            grenade.Restitution=float.NaN;Assert.That(grenade.Valid,Is.False);
+            grenade.Gravity=1000001;Assert.That(grenade.Valid,Is.False);grenade.Gravity=18;grenade.ProximityRadius=1000001;Assert.That(grenade.Valid,Is.False);grenade.ProximityRadius=1;grenade.Restitution=float.NaN;Assert.That(grenade.Valid,Is.False);
         }
     }
 }

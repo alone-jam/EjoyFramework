@@ -26,7 +26,7 @@ namespace EjoyFramework.GamePlay.Combat
         public Vector3 Velocity;
         public float Gravity,Restitution,ProximityRadius,OwnerIgnoreSeconds;
         public uint BounceMask,BounceTick;
-        public bool Valid=>Finite(Velocity)&&HistoricalCollider.Finite(Gravity)&&Gravity>=0&&HistoricalCollider.Finite(Restitution)&&Restitution>=0&&Restitution<=1&&HistoricalCollider.Finite(ProximityRadius)&&ProximityRadius>=0&&HistoricalCollider.Finite(OwnerIgnoreSeconds)&&OwnerIgnoreSeconds>=0&&OwnerIgnoreSeconds<=3600&&BounceTick<=LastTick&&Key.IsValid&&LastTick>=Key.StartTick-1&&ImpactTick<=LastTick&&
+        public bool Valid=>Finite(Velocity)&&HistoricalCollider.Finite(Gravity)&&Gravity>=0&&Gravity<=1000000&&HistoricalCollider.Finite(Restitution)&&Restitution>=0&&Restitution<=1&&HistoricalCollider.Finite(ProximityRadius)&&ProximityRadius>=0&&ProximityRadius<=1000000&&HistoricalCollider.Finite(OwnerIgnoreSeconds)&&OwnerIgnoreSeconds>=0&&OwnerIgnoreSeconds<=3600&&BounceTick<=LastTick&&Key.IsValid&&LastTick>=Key.StartTick-1&&ImpactTick<=LastTick&&
             HistoricalCollider.Finite(Speed)&&Speed>0&&Speed<=1000000&&HistoricalCollider.Finite(Radius)&&Radius>=0&&Radius<=1000000&&
             HistoricalCollider.Finite(MaxAgeSeconds)&&MaxAgeSeconds>0&&MaxAgeSeconds<=3600&&HistoricalCollider.Finite(ImpactRetentionSeconds)&&ImpactRetentionSeconds>=0&&ImpactRetentionSeconds<=3600&&
             Finite(Start)&&Finite(End)&&Finite(Position)&&Finite(ImpactNormal)&&(End-Start).LengthSquared()>.000001f;

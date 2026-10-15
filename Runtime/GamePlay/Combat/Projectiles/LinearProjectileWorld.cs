@@ -21,12 +21,17 @@ namespace EjoyFramework.GamePlay.Combat
         public Vector3 Start, End, Position, ImpactNormal;
         public float Speed, Radius, MaxAgeSeconds, ImpactRetentionSeconds;
         public uint LastTick, ImpactTick, CollisionDelay, Mask;
-        public bool Valid=>Key.IsValid&&LastTick>=Key.StartTick-1&&ImpactTick<=LastTick&&
+        // Optional semi-implicit ballistic flight. BounceMask is caller-defined environment category.
+        public bool Ballistic;
+        public Vector3 Velocity;
+        public float Gravity,Restitution,ProximityRadius,OwnerIgnoreSeconds;
+        public uint BounceMask,BounceTick;
+        public bool Valid=>Finite(Velocity)&&HistoricalCollider.Finite(Gravity)&&Gravity>=0&&HistoricalCollider.Finite(Restitution)&&Restitution>=0&&Restitution<=1&&HistoricalCollider.Finite(ProximityRadius)&&ProximityRadius>=0&&HistoricalCollider.Finite(OwnerIgnoreSeconds)&&OwnerIgnoreSeconds>=0&&OwnerIgnoreSeconds<=3600&&BounceTick<=LastTick&&Key.IsValid&&LastTick>=Key.StartTick-1&&ImpactTick<=LastTick&&
             HistoricalCollider.Finite(Speed)&&Speed>0&&Speed<=1000000&&HistoricalCollider.Finite(Radius)&&Radius>=0&&Radius<=1000000&&
             HistoricalCollider.Finite(MaxAgeSeconds)&&MaxAgeSeconds>0&&MaxAgeSeconds<=3600&&HistoricalCollider.Finite(ImpactRetentionSeconds)&&ImpactRetentionSeconds>=0&&ImpactRetentionSeconds<=3600&&
             Finite(Start)&&Finite(End)&&Finite(Position)&&Finite(ImpactNormal)&&(End-Start).LengthSquared()>.000001f;
         private static bool Finite(Vector3 p)=>HistoricalCollider.Finite(p.X)&&HistoricalCollider.Finite(p.Y)&&HistoricalCollider.Finite(p.Z)&&Math.Abs(p.X)<=1000000&&Math.Abs(p.Y)<=1000000&&Math.Abs(p.Z)<=1000000;
-        public Vector3 PositionAt(double tick, int rate)=>ImpactTick!=0?Position:Start+Vector3.Normalize(End-Start)*(float)(Math.Max(0,tick-Key.StartTick)/rate*Speed);
+        public Vector3 PositionAt(double tick, int rate)=>ImpactTick!=0?Position:Ballistic?Position+Velocity*(float)(Math.Max(0,tick-LastTick)/rate)-Vector3.UnitY*(float)(.5*Gravity*Math.Pow(Math.Max(0,tick-LastTick)/rate,2)):Start+Vector3.Normalize(End-Start)*(float)(Math.Max(0,tick-Key.StartTick)/rate*Speed);
     }
     public readonly struct ProjectileImpact
     {
@@ -41,7 +46,7 @@ namespace EjoyFramework.GamePlay.Combat
         public readonly int Impacts, Expired, MissingHistory, Fallbacks, FutureFallbacks, PastFallbacks;
         internal ProjectileAdvanceResult(int impacts,int expired,int missing,int fallbacks,int futureFallbacks,int pastFallbacks){Impacts=impacts;Expired=expired;MissingHistory=missing;Fallbacks=fallbacks;FutureFallbacks=futureFallbacks;PastFallbacks=pastFallbacks;}
     }
-    /// <summary>Bounded owner-thread straight-flight simulation. Damage, teams, history fallback policy and tuning belong to the caller.
+    /// <summary>Bounded owner-thread linear or optional ballistic simulation (legacy class name retained). Damage, teams, history fallback policy and tuning belong to the caller.
     /// Sweeps the whole movement segment, emits an impact once, retains it, then expires. No live physics mutation or callbacks.</summary>
     public sealed class LinearProjectileWorld
     {
@@ -74,17 +79,30 @@ namespace EjoyFramework.GamePlay.Combat
                 if(p.ImpactTick>0&&(tick-p.ImpactTick)/(float)m_Rate>p.ImpactRetentionSeconds)
                 {m_Items[i]=m_Items[--m_Count];expired++;continue;}
                 if(p.ImpactTick!=0){p.LastTick=tick;m_Items[i++]=p;continue;}
-                uint queryTick=tick>p.CollisionDelay?tick-p.CollisionDelay:0;
+                uint queryTick=p.Ballistic?tick:tick>p.CollisionDelay?tick-p.CollisionDelay:0;
                 uint requestedQueryTick=queryTick;
-                var next=p.PositionAt(tick,m_Rate);var delta=next-p.Position;float distance=delta.Length();
-                var direction=Vector3.Normalize(p.End-p.Start);
-                var result=history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,p.Radius,p.Mask,p.Key.Owner,out var hit);
+                var velocity=p.Velocity;var next=p.PositionAt(tick,m_Rate);
+                if(p.Ballistic)
+                {
+                    if(velocity.Length()>=.5f){velocity-=Vector3.UnitY*p.Gravity*((tick-p.LastTick)/(float)m_Rate);next=p.Position+velocity*((tick-p.LastTick)/(float)m_Rate);}
+                    else next=p.Position;
+                }
+                var delta=next-p.Position;float travel=delta.Length(),distance=travel+(p.Ballistic?p.Radius:0);
+                var direction=travel>.000001f?delta/travel:Vector3.Normalize(p.End-p.Start);
+                HistoricalHit hit=default;var result=p.Ballistic&&p.Velocity.Length()<.5f?HistoricalQueryStatus.Miss:history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,(p.Ballistic?p.ProximityRadius:p.Radius),p.Mask,(p.Ballistic&&(tick-p.Key.StartTick)/(float)m_Rate>=p.OwnerIgnoreSeconds?0:p.Key.Owner),out hit);
                 if(result==HistoricalQueryStatus.WrongEpoch)throw new InvalidOperationException("Projectile/history epoch mismatch.");
                 if(result==HistoricalQueryStatus.HistoryUnavailable&&fallbackToLatest)
-                {if(queryTick>history.LatestTick)futureFallbacks++;else pastFallbacks++;queryTick=history.LatestTick;result=history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,p.Radius,p.Mask,p.Key.Owner,out hit);fallbacks++;}
+                {if(queryTick>history.LatestTick)futureFallbacks++;else pastFallbacks++;queryTick=history.LatestTick;result=history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,(p.Ballistic?p.ProximityRadius:p.Radius),p.Mask,(p.Ballistic&&(tick-p.Key.StartTick)/(float)m_Rate>=p.OwnerIgnoreSeconds?0:p.Key.Owner),out hit);fallbacks++;}
                 if(result==HistoricalQueryStatus.HistoryUnavailable){missing++;if(overAge){m_Items[i]=m_Items[--m_Count];expired++;}else i++;continue;}
-                p.LastTick=tick;p.Position=next;
-                if(result==HistoricalQueryStatus.Hit){p.Position=hit.Point;p.ImpactNormal=hit.Normal;p.ImpactTick=tick;impacts[hits++]=new ProjectileImpact(in p,in hit,queryTick,requestedQueryTick);}
+                p.LastTick=tick;p.Position=next;if(p.Ballistic)p.Velocity=velocity;
+                if(result==HistoricalQueryStatus.Hit)
+                {
+                    p.Position=hit.Point;p.ImpactNormal=hit.Normal;
+                    if(p.Ballistic&&(hit.Collider.Mask&p.BounceMask)!=0)
+                    {p.Position+=hit.Normal*p.Radius;p.Velocity=Vector3.Reflect(velocity,hit.Normal)*p.Restitution;p.BounceTick=tick;}
+                    else {p.ImpactTick=tick;impacts[hits++]=new ProjectileImpact(in p,in hit,queryTick,requestedQueryTick);}
+                }
+                if(p.Ballistic&&p.ImpactTick==0&&overAge){p.ImpactTick=tick;impacts[hits++]=new ProjectileImpact(in p,default,queryTick,requestedQueryTick);}
                 // Resolve the final movement query before age-based despawn. An impact on
                 // that last update enters retained impact state instead of vanishing.
                 if(p.ImpactTick==0&&overAge){m_Items[i]=m_Items[--m_Count];expired++;continue;}

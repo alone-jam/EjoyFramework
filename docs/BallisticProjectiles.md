@@ -1,0 +1,7 @@
+# Optional ballistic flight
+
+`LinearProjectileWorld` retains its name and default straight-line behavior for compatibility. `LinearProjectileState.Ballistic` opts a state into semi-implicit gravity, configurable environment bounce and fuse impact. The caller supplies velocity, gravity, restitution, proximity sweep radius, environment category mask and owner exclusion grace. Teams, damage, blast tuning, history fallback policy and presentation remain caller-owned.
+
+Each authority tick updates velocity before displacement, sweeps the complete movement segment, reflects environment hits selected by BounceMask, and emits an impact for other hits. A ballistic max-age timeout emits one retained impact with default hit identity (owner zero), allowing the caller to apply its fuse/blast policy. `BounceTick` distinguishes bounces from terminal impacts. Normal epoch, owner-thread, finite-state and bounded-capacity checks remain active. Advance once per fixed tick for the intended integration accuracy. PositionAt extrapolates ballistic presentation from the last authoritative position/velocity, rather than from a straight initial ray.
+
+.NET tests cover gravity/bounce, one fuse impact, retention, actor proximity and invalid configuration alongside all existing linear/history/replica tests. Game consumers must include the new fields in their own wire schema and bump its revision before enabling ballistic state on the wire.

@@ -9,6 +9,8 @@ namespace EjoyFramework.GamePlay.Unity.Combat
     /// <summary>Composes immutable static Unity mesh geometry with historical dynamic shapes.
     /// Use a dedicated layer containing exactly the supplied static colliders; moving geometry belongs
     /// in history. Checks transforms/enabled state once per captured tick and fails on mutation.
+    /// Non-convex meshes are queried as surfaces, not solid-volume interiors. Unknown colliders
+    /// are rejected when Unity reports a cast hit or initial overlap, not by scanning all layer occupants.
     /// All buffers are allocated at construction; sweeps do not mutate live physics or allocate.</summary>
     public sealed class StaticPhysicsHistoricalQuery : IHistoricalSweepQuery
     {

@@ -64,7 +64,39 @@ namespace EjoyFramework.GamePlay.Tests
             {
                 other.transform.position=new Vector3(3,0,5);Physics.SyncTransforms();
                 Assert.Throws<InvalidOperationException>(()=>query.Sweep(1,1,new V(3,0,0),V.UnitZ,20,0,uint.MaxValue,0,out _));
-                Assert.Throws<InvalidOperationException>(()=>query.Sweep(1,1,new V(3,0,5),V.UnitZ,20,.1f,uint.MaxValue,0,out _));
+                // A non-convex mesh is a surface: intersect its front face, rather than
+                // expecting a small sphere fully inside the closed mesh to overlap it.
+                var overlaps=new Collider[2];
+                int count=Physics.defaultPhysicsScene.OverlapSphere(new Vector3(3,0,4.45f),.1f,overlaps,1<<29,QueryTriggerInteraction.Ignore);
+                Assert.That(count,Is.EqualTo(1));Assert.That(overlaps[0],Is.EqualTo(other.GetComponent<MeshCollider>()));
+                Assert.Throws<InvalidOperationException>(()=>query.Sweep(1,1,new V(3,0,4.45f),V.UnitZ,20,.1f,uint.MaxValue,0,out _));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(other); }
+        }
+
+        [Test] public void ConvexUnregisteredColliderContainingOverlapOriginIsRejected()
+        {
+            var other=UnityEngine.Object.Instantiate(wall);
+            try
+            {
+                other.transform.position=new Vector3(3,0,5);var solid=other.GetComponent<MeshCollider>();solid.convex=true;Physics.SyncTransforms();
+                var overlaps=new Collider[2];
+                int count=Physics.defaultPhysicsScene.OverlapSphere(new Vector3(3,0,5),.1f,overlaps,1<<29,QueryTriggerInteraction.Ignore);
+                Assert.That(count,Is.EqualTo(1));Assert.That(overlaps[0],Is.EqualTo(solid));
+                Assert.Throws<InvalidOperationException>(()=>query.Sweep(1,1,new V(3,0,5),V.UnitZ,0,.1f,uint.MaxValue,0,out _));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(other); }
+        }
+        [Test] public void NonConvexInteriorWithoutSurfaceOverlapDoesNotInventAStaticHit()
+        {
+            var other=UnityEngine.Object.Instantiate(wall);
+            try
+            {
+                other.transform.position=new Vector3(3,0,5);Physics.SyncTransforms();
+                var overlaps=new Collider[2];
+                Assert.That(Physics.defaultPhysicsScene.OverlapSphere(new Vector3(3,0,5),.1f,overlaps,1<<29,QueryTriggerInteraction.Ignore),Is.Zero);
+                // Zero travel isolates initial-overlap admission from ray/backface settings.
+                Assert.That(query.Sweep(1,1,new V(3,0,5),V.UnitZ,0,.1f,uint.MaxValue,0,out _),Is.EqualTo(HistoricalQueryStatus.Miss));
             }
             finally { UnityEngine.Object.DestroyImmediate(other); }
         }

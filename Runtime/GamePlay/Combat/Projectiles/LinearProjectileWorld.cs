@@ -84,16 +84,24 @@ namespace EjoyFramework.GamePlay.Combat
                 var velocity=p.Velocity;var next=p.PositionAt(tick,m_Rate);
                 if(p.Ballistic)
                 {
-                    if(velocity.Length()>=.5f){velocity-=Vector3.UnitY*p.Gravity*((tick-p.LastTick)/(float)m_Rate);next=p.Position+velocity*((tick-p.LastTick)/(float)m_Rate);}
-                    else next=p.Position;
+                    float elapsed=(tick-p.LastTick)/(float)m_Rate;
+                    velocity-=Vector3.UnitY*p.Gravity*elapsed;
+                    next=p.Position+velocity*elapsed;
                 }
-                var delta=next-p.Position;float travel=delta.Length(),distance=travel+(p.Ballistic?p.Radius:0);
+                var delta=next-p.Position;float travel=delta.Length();
                 var direction=travel>.000001f?delta/travel:Vector3.Normalize(p.End-p.Start);
-                HistoricalHit hit=default;var result=p.Ballistic&&p.Velocity.Length()<.5f?HistoricalQueryStatus.Miss:history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,(p.Ballistic?p.ProximityRadius:p.Radius),p.Mask,(p.Ballistic&&(tick-p.Key.StartTick)/(float)m_Rate>=p.OwnerIgnoreSeconds?0:p.Key.Owner),out hit);
+                HistoricalHit hit;var result=Sweep(history,in p,tick,queryTick,direction,travel,out hit);
                 if(result==HistoricalQueryStatus.WrongEpoch)throw new InvalidOperationException("Projectile/history epoch mismatch.");
                 if(result==HistoricalQueryStatus.HistoryUnavailable&&fallbackToLatest)
-                {if(queryTick>history.LatestTick)futureFallbacks++;else pastFallbacks++;queryTick=history.LatestTick;result=history.Sweep(m_Epoch,queryTick,p.Position,direction,distance,(p.Ballistic?p.ProximityRadius:p.Radius),p.Mask,(p.Ballistic&&(tick-p.Key.StartTick)/(float)m_Rate>=p.OwnerIgnoreSeconds?0:p.Key.Owner),out hit);fallbacks++;}
-                if(result==HistoricalQueryStatus.HistoryUnavailable){missing++;if(overAge){m_Items[i]=m_Items[--m_Count];expired++;}else i++;continue;}
+                {if(queryTick>history.LatestTick)futureFallbacks++;else pastFallbacks++;queryTick=history.LatestTick;result=Sweep(history,in p,tick,queryTick,direction,travel,out hit);fallbacks++;}
+                if(result==HistoricalQueryStatus.HistoryUnavailable)
+                {
+                    missing++;
+                    // A ballistic fuse is independent of collision history. Let the normal
+                    // movement/fuse path retain its default-hit impact even when no frame exists.
+                    if(!p.Ballistic||!overAge)
+                    {if(overAge){m_Items[i]=m_Items[--m_Count];expired++;}else i++;continue;}
+                }
                 p.LastTick=tick;p.Position=next;if(p.Ballistic)p.Velocity=velocity;
                 if(result==HistoricalQueryStatus.Hit)
                 {
@@ -109,6 +117,22 @@ namespace EjoyFramework.GamePlay.Combat
                 m_Items[i++]=p;
             }
             m_Tick=tick;return new ProjectileAdvanceResult(hits,expired,missing,fallbacks,futureFallbacks,pastFallbacks);
+        }
+
+        private HistoricalQueryStatus Sweep(IHistoricalSweepQuery history,in LinearProjectileState p,uint tick,uint queryTick,Vector3 direction,float travel,out HistoricalHit hit)
+        {
+            ulong excludedOwner=p.Ballistic&&(tick-p.Key.StartTick)/(float)m_Rate>=p.OwnerIgnoreSeconds?0:p.Key.Owner;
+            // Sweep distance is center travel; the query already expands shapes by Radius.
+            var result=history.Sweep(m_Epoch,queryTick,p.Position,direction,travel,p.Radius,p.Mask,excludedOwner,out hit);
+            uint proximityMask=p.Mask&~p.BounceMask;
+            if(!p.Ballistic||p.ProximityRadius<=p.Radius||proximityMask==0||result==HistoricalQueryStatus.WrongEpoch||result==HistoricalQueryStatus.HistoryUnavailable)return result;
+            var proximity=history.Sweep(m_Epoch,queryTick,p.Position,direction,travel,p.ProximityRadius,proximityMask,excludedOwner,out var actor);
+            if(proximity==HistoricalQueryStatus.WrongEpoch||proximity==HistoricalQueryStatus.HistoryUnavailable)return proximity;
+            // Environment categories always use physical body contact, even if a collider
+            // carries additional category bits. Keep physical contact on an exact tie.
+            if(proximity==HistoricalQueryStatus.Hit&&(actor.Collider.Mask&p.BounceMask)==0&&(result!=HistoricalQueryStatus.Hit||actor.Distance<hit.Distance))
+            {hit=actor;return HistoricalQueryStatus.Hit;}
+            return result;
         }
     }
 }

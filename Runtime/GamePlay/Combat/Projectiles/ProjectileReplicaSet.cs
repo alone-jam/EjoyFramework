@@ -71,7 +71,8 @@ namespace EjoyFramework.GamePlay.Combat
                 }
                 ref var entry=ref m_Items[index];
                 if(entry.Predicted)
-                {bool matches=Vector3.Distance(entry.State.Start,state.Start)<=positionTolerance&&Vector3.Distance(entry.State.End,state.End)<=positionTolerance;
+                {bool matches=Vector3.Distance(entry.State.Start,state.Start)<=positionTolerance&&Vector3.Distance(entry.State.End,state.End)<=positionTolerance&&
+                        entry.State.Ballistic==state.Ballistic&&(!state.Ballistic||(entry.State.Velocity==state.Velocity&&entry.State.Gravity==state.Gravity));
                     output[count++]=new ProjectileReplicaTransition(matches?ProjectileReplicaChange.Confirmed:ProjectileReplicaChange.Corrected,in state);}
                 else if(!entry.Visible)output[count++]=new ProjectileReplicaTransition(ProjectileReplicaChange.Appeared,in state);
                 entry.State=state;entry.Predicted=false;entry.Visible=true;entry.Seen=true;

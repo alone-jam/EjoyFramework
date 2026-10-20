@@ -28,6 +28,8 @@ namespace EjoyFramework.Core.Procedure
             get { return -100; }
         }
 
+        public bool IsInitialized => m_ProcedureFsm != null;
+
         public ProcedureBase CurrentProcedure
         {
             get

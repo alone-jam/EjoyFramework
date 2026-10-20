@@ -12,6 +12,15 @@ namespace EjoyFramework.Tests
     {
         [SetUp] public void Setup()=>EjoyFramework.Core.Generated.FrameworkModuleRegistrations.RegisterAll();
         [TearDown] public void Cleanup()=>EjoyFramework.Core.Framework.Shutdown();
+        public sealed class ProbeProcedure : EjoyFramework.Core.Procedure.ProcedureBase {}
+        [Test] public void ProcedureInitializationStatusCoversStartupAndShutdown()
+        {
+            var manager=EjoyFramework.Core.Framework.GetModule<EjoyFramework.Core.Procedure.IProcedureManager>();
+            Assert.IsFalse(manager.IsInitialized);
+            manager.Initialize(EjoyFramework.Core.Framework.GetModule<EjoyFramework.Core.Fsm.IFsmManager>(),new ProbeProcedure());
+            Assert.IsTrue(manager.IsInitialized);manager.StartProcedure<ProbeProcedure>();Assert.IsNotNull(manager.CurrentProcedure);
+            ((EjoyFramework.Core.FrameworkModule)manager).Shutdown();Assert.IsFalse(manager.IsInitialized);
+        }
         const string PrefabPath="Packages/com.ejoy.framework/Runtime/Prefabs/EjoyFramework.prefab";
         [TestCase("m_LogHelperTypeName",typeof(DefaultLogHelper))]
         [TestCase("m_JsonHelperTypeName",typeof(DefaultJsonHelper))]

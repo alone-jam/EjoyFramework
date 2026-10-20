@@ -12,6 +12,9 @@ namespace EjoyFramework.Core.Procedure
     /// </summary>
     public interface IProcedureManager
     {
+        /// <summary>Whether a procedure FSM has been initialized; safe before startup and after shutdown.</summary>
+        bool IsInitialized { get; }
+
         /// <summary>
         /// 获取当前流程。
         /// </summary>

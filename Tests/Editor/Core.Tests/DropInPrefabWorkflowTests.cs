@@ -10,6 +10,7 @@ namespace EjoyFramework.Tests
 {
     public sealed class DropInPrefabWorkflowTests
     {
+        [SetUp] public void Setup()=>EjoyFramework.Core.Generated.FrameworkModuleRegistrations.RegisterAll();
         [TearDown] public void Cleanup()=>EjoyFramework.Core.Framework.Shutdown();
         const string PrefabPath="Packages/com.ejoy.framework/Runtime/Prefabs/EjoyFramework.prefab";
         [TestCase("m_LogHelperTypeName",typeof(DefaultLogHelper))]

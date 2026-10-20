@@ -5,13 +5,11 @@
 
 #if UNITY_EDITOR
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using EjoyFramework.Core.Coroutines;
 using EjoyFramework.Core.Resource;
 using UnityEditor;
 using UnityEngine;
-using UnitySceneManager = UnityEngine.SceneManagement.SceneManager;
 
 namespace EjoyFramework.Core.Unity.Resource
 {
@@ -21,7 +19,7 @@ namespace EjoyFramework.Core.Unity.Resource
     ///
     /// 行为约定：
     ///   - LoadAssetAsync 同步完成；业务代码不应假设回调一定异步（与 AB Loader 一致：AB 命中缓存时也可同步回调）
-    ///   - LoadSceneAsync 走 Unity SceneManager.LoadSceneAsync，场景必须已添加到 Build Settings
+    ///   - LoadSceneAsync/UnloadSceneAsync 只完成资源准备/释放；原生场景由 DefaultSceneHelper 独占挂载/卸载
     ///   - HasAsset：优先查 manifest，否则 fallback 到 AssetDatabase.AssetPathToGUID
     ///   - UnloadAsset：编辑期 AssetDatabase 加载的资产由 Editor 引用持有，无需手动卸载（noop）
     ///   - 引用计数：编辑器模式不做计数（与 AB Loader 行为不一致，仅用于功能性验证而非生命周期校验）
@@ -152,7 +150,10 @@ namespace EjoyFramework.Core.Unity.Resource
                 if (onFailure != null) onFailure(sceneAssetName, "Scene asset name is invalid.");
                 return;
             }
-            m_Coroutine.Run(LoadSceneRoutine(sceneAssetName, onProgress, onSuccess, onFailure), CoroutineTag, this);
+            // Simulation has no scene bundles. Match AssetBundleLoader: only prepare
+            // resources here; DefaultSceneHelper validates and mounts the scene once.
+            onProgress?.Invoke(1f);
+            onSuccess?.Invoke(sceneAssetName);
         }
 
         public void UnloadSceneAsync(string sceneAssetName,
@@ -163,7 +164,8 @@ namespace EjoyFramework.Core.Unity.Resource
                 if (onFailure != null) onFailure(sceneAssetName, "Scene asset name is invalid.");
                 return;
             }
-            m_Coroutine.Run(UnloadSceneRoutine(sceneAssetName, onSuccess, onFailure), CoroutineTag, this);
+            // DefaultSceneHelper already performed the native unload.
+            onSuccess?.Invoke(sceneAssetName);
         }
 
         public void UnloadAsset(object asset)
@@ -216,55 +218,6 @@ namespace EjoyFramework.Core.Unity.Resource
             }
         }
 
-        private IEnumerator LoadSceneRoutine(string sceneAssetName,
-            Action<float> onProgress, Action<string> onSuccess, Action<string, string> onFailure)
-        {
-            m_LoadingTaskCount++;
-            AsyncOperation op = null;
-            string err = null;
-            try
-            {
-                op = UnitySceneManager.LoadSceneAsync(sceneAssetName, UnityEngine.SceneManagement.LoadSceneMode.Additive);
-            }
-            catch (Exception ex) { err = ex.Message; }
-
-            if (op == null)
-            {
-                m_LoadingTaskCount--;
-                if (onFailure != null) onFailure(sceneAssetName, err ?? "SceneManager.LoadSceneAsync returned null. Scene must be in Build Settings for EditorSimulation mode.");
-                yield break;
-            }
-
-            while (!op.isDone)
-            {
-                if (onProgress != null) onProgress(op.progress);
-                yield return null;
-            }
-            if (onProgress != null) onProgress(1f);
-            m_LoadingTaskCount--;
-            if (onSuccess != null) onSuccess(sceneAssetName);
-        }
-
-        private IEnumerator UnloadSceneRoutine(string sceneAssetName,
-            Action<string> onSuccess, Action<string, string> onFailure)
-        {
-            AsyncOperation op = null;
-            string err = null;
-            try
-            {
-                op = UnitySceneManager.UnloadSceneAsync(sceneAssetName);
-            }
-            catch (Exception ex) { err = ex.Message; }
-
-            if (op == null)
-            {
-                if (onFailure != null) onFailure(sceneAssetName, err ?? "SceneManager.UnloadSceneAsync returned null.");
-                yield break;
-            }
-
-            while (!op.isDone) yield return null;
-            if (onSuccess != null) onSuccess(sceneAssetName);
-        }
     }
 }
 #endif

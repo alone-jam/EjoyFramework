@@ -66,8 +66,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_EditorResourceMode: 1
   m_EditorLanguage: 0
-  m_LogHelperTypeName: EjoyFramework.Runtime.DefaultLogHelper
-  m_JsonHelperTypeName: EjoyFramework.Runtime.DefaultJsonHelper
+  m_LogHelperTypeName: EjoyFramework.Core.Unity.DefaultLogHelper
+  m_JsonHelperTypeName: EjoyFramework.Core.Unity.DefaultJsonHelper
   m_FrameRate: 60
   m_GameSpeed: 1
   m_RunInBackground: 1
@@ -388,7 +388,7 @@ RectTransform:
   m_GameObject: {fileID: 2123871217287053703}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1720653715218775412}
@@ -688,7 +688,7 @@ RectTransform:
   m_GameObject: {fileID: 4397098805829369904}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1720653715218775412}
@@ -808,7 +808,7 @@ RectTransform:
   m_GameObject: {fileID: 5418735254220674034}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1720653715218775412}
@@ -1018,7 +1018,7 @@ RectTransform:
   m_GameObject: {fileID: 5914850545437722579}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1720653715218775412}
@@ -1182,7 +1182,7 @@ RectTransform:
   m_GameObject: {fileID: 6499234137837166328}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1720653715218775412}
@@ -1633,7 +1633,7 @@ RectTransform:
   m_GameObject: {fileID: 8327362792818202436}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1720653715218775412}
@@ -1753,7 +1753,7 @@ RectTransform:
   m_GameObject: {fileID: 8376203462347866405}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1720653715218775412}
@@ -1903,7 +1903,7 @@ MonoBehaviour:
   m_ReferenceResolution: {x: 1920, y: 1080}
   m_MatchWidthOrHeight: 0.5
   m_AutoMatchByOrientation: 1
-  m_UIFormHelperTypeName: EjoyFramework.Runtime.DefaultUIFormHelper
+  m_UIFormHelperTypeName: EjoyFramework.Core.Unity.DefaultUIFormHelper
   m_UIGroups:
   - Name: Background
     Depth: 0
@@ -2108,7 +2108,7 @@ RectTransform:
   m_GameObject: {fileID: 8993254019701273235}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1720653715218775412}

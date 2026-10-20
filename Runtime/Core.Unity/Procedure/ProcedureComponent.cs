@@ -82,6 +82,8 @@ namespace EjoyFramework.Core.Unity
         /// <summary>
         /// 获取当前流程。
         /// </summary>
+        public bool IsInitialized => m_ProcedureManager != null && m_ProcedureManager.IsInitialized;
+
         public ProcedureBase CurrentProcedure
         {
             get { return m_ProcedureManager.CurrentProcedure; }
